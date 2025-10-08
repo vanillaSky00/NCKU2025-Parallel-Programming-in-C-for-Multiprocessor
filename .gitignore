@@ -1,0 +1,50 @@
+# Build and binary files
+*.exe
+*.out
+*.o
+*.obj
+*.class
+
+# Debug / IDE artifacts
+*.log
+*.swp
+*.swo
+*.DS_Store
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# IntelliJ / Eclipse / NetBeans
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+
+# Java build outputs
+/bin/
+/target/
+/build/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Gradle / Maven
+.gradle/
+*.jar
+*.war
+*.ear
+*.db
+
+# Backup files
+*~
+
+
+
+# if anything unwanted add to git just: git rm --cached graph/convex_hull/graham_scan.exe 
