@@ -38,8 +38,8 @@ int main(int argc, char *argv[]) {
     // group 0: handle first loop sqrt(n) to 1/2 sqt(n) + 1/2 sqt(n)
     if (group == 0) {
         long long chunk = (sqrt_n + 1) / 2;
-        long long start = (local_id == 0) ? 1 : chunk + 1;
-        long long end = (local_id == 0) ? chunk : sqrt_n;
+        int start = (local_id == 0) ? 1 : chunk + 1;
+        int end = (local_id == 0) ? chunk : sqrt_n;
 
         for (long long i = start; i <= end; i++) {
             long long temp = (n / i) * i % MOD;
@@ -51,8 +51,8 @@ int main(int argc, char *argv[]) {
     if (group == 1) {
         long long last = n / sqrt_n;
         long long chunk = (last - 1) / 2;
-        long long start  = (local_id == 0) ? 1 : chunk + 1;
-        long long end = (local_id == 0) ? chunk : last - 1;
+        int start  = (local_id == 0) ? 1 : chunk + 1;
+        int end = (local_id == 0) ? chunk : last - 1;
 
         for (long long i = start; i <= end; i++) {
             long long l = n / (i + 1) + 1;
@@ -64,12 +64,19 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    long long total = 0;
-    MPI_Reduce(&local_sum, &total, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    long long* global_result = nullptr;
+    if (world_rank == 0) global_result = new long long[world_size];
+
+    MPI_Gather(&local_sum, 1, MPI_LONG_LONG, 
+                global_result, 1, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
 
     if (world_rank == 0) {
-        total %= MOD;
+        long long total = 0;
+        for (int i = 0; i < world_size; i++) {
+            total = (total + (global_result[i] % MOD) ) % MOD;
+        }
         std::cout << total << "\n"; 
+        delete[] global_result;
     }
 
     MPI_Finalize();
