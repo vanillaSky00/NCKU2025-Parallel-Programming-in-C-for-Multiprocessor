@@ -45,17 +45,14 @@ int main(int argc, char *argv[]) {
             if (myAbility >= d) {
                 lose_count[i] = 0;
             } else {
-                // players with ability >= d
+                // players with ability >= d, binary search here
                 auto it = lower_bound(abilities.begin(), abilities.end(), d);
                 lose_count[i] = (int)(abilities.end() - it);
             }
         }
 
-        // Sort c ascending; optimal partition into blocks of size k is consecutive
         sort(lose_count.begin(), lose_count.end());
 
-        // For each k, sum maxima of each full block of size k:
-        // maxima are at indices k-1, 2k-1, 3k-1, ...
         for (int k = 1; k <= m; ++k) {
             long long ans = 0;
             for (int j = k - 1; j < m; j += k) {
@@ -64,6 +61,7 @@ int main(int argc, char *argv[]) {
             cout << ans << (k == m ? '\n' : ' ');
         }
     }
+    
     MPI_Finalize();    
     return 0;
 }
