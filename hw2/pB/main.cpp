@@ -50,9 +50,8 @@ int main(int argc, char *argv[]) {
             //cout << "when k = " << k << " rank: " << lose_count[j] + 1 << "\n";
             ans += lose_count[j] + 1;
         }
-        cout << ans << " ";
+        cout << ans << (k == m ? '\n' : ' ');
         //cout << "stage: " << ans << "\n";
     }
-    cout << "\n";
     return 0;
 }

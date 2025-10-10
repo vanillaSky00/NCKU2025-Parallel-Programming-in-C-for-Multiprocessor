@@ -56,10 +56,9 @@ int main(int argc, char *argv[]) {
                 //cout << "when k = " << k << " rank: " << lose_count[j] + 1 << "\n";
                 ans += (long long) lose_count[j] + 1;
             }
-            cout << ans << " ";
+            cout << ans << (k == m ? '\n' : ' ');
             //cout << "stage: " << ans << "\n";
         }
-        cout << "\n";
     }
 
     MPI_Finalize();
