@@ -55,9 +55,8 @@ int main(int argc, char *argv[]) {
             for (int j = k - 1; j < m; j += k) {
                 ans += (long long)lose_count[j] + 1;
             }
-            cout << ans << ' ';
+            cout << ans << (k == m ? '\n' : ' '); // space format in this judge
         }
-        cout << '\n';
     }
 
     MPI_Finalize();
