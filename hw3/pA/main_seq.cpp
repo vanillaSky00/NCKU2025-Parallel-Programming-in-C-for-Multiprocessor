@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <cmath>
 using namespace std;
 
 vector<double> gauss_sequential (vector<vector<double>>& a, vector<double>& b) {
@@ -71,7 +72,7 @@ int main(int argc, char *argv[]) {
     vector<double> b(n);
     string s;
     for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n - 1; j++) {
+        for (int j = 0; j < n; j++) {
             file >> s;
             a[i][j] = parse_token(s);
         }
@@ -89,9 +90,9 @@ int main(int argc, char *argv[]) {
 
     vector<double> x = gauss_sequential(a, b);
     
-    // for (int i = 0; i < n; i++) {
-    //     cout << x[i] << " ";
-    // }
+    for (int i = 0; i < n; i++) {
+        cout << x[i] << " ";
+    }
 
     return 0;
 }
