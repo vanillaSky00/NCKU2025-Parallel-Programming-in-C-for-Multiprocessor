@@ -1,0 +1,1 @@
+https://stackoverflow.com/questions/10363891/parallel-iterative-algorithms-for-solving-linear-system-of-equations
