@@ -150,8 +150,7 @@ we assign worker1 (P1) with 1,3,5,7,... worker2 with 2,4,6,8...
 
 ```
 1. Local pivot selection
-Each processor checks its rows in column 
-𝑘
+Each processor checks its rows in column 𝑘
 k to find the largest value → its local pivot candidate.
 
 2. Global pivot selection
@@ -175,3 +174,5 @@ Each processor uses the pivot to eliminate elements in its own rows → local wo
 right-hand side vectors b without repeating the elimination process.
 
 Parallel Programming for Multicore and Cluster Systems Ch7.1 p363
+
+- A matrix should be invertible
