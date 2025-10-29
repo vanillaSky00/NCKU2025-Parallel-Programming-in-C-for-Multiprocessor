@@ -102,7 +102,7 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
         if (k % world_size == me) {
             double sum = 0.0;
             for (int j = k + 1; j < n; j++) sum += A[k][j] * x[j];
-            xk = (A[k][k] < EPS) ? 0.0 : (b[k] - sum) / A[k][k]; // handle singluar 
+            xk = (fabs(A[k][k]) < EPS) ? 0.0 : (b[k] - sum) / A[k][k]; // handle singluar 
         }
         MPI_Bcast(&xk, 1, MPI_DOUBLE, k % world_size, comm);
         x[k] = xk;
@@ -200,7 +200,7 @@ static inline pair<int, double> local_pivot_candidate(const vector<vector<double
     int best_row = -1;
     double best = 0.0;
 
-    for (int i = 0; i < n; i++) {
+    for (int i = k; i < n; i++) { // start from k
         if ((i % world_size) != me) continue;
         double v = fabs(A[i][k]);
         if (v > best) {
