@@ -14,8 +14,8 @@ static constexpr double EPS = 1e-12;
 
 static inline pair<int, double> local_pivot_candidate(const vector<vector<double>>& A, int k, int n, int world_size, int me);
 static inline void swap_rows(vector<vector<double>>& A, vector<double>& b, int r1, int r2);
-static inline void pack_pivot_tail(vector<vector<double>>& A, vector<double>& b, int k, int n, const vector<double>& buf);
-static inline void unpack_pivot_tail(const vector<vector<double>>& A, const vector<double>& b, int k, int n, vector<double>& buf);
+static inline void pack_pivot_tail(const vector<vector<double>>& A, const vector<double>& b, int k, int n, vector<double>& buf);
+static inline void unpack_pivot_tail(vector<vector<double>>& A, vector<double>& b, int k, int n, const vector<double>& buf);
 
 vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n, MPI_Comm comm, unsigned char& state) {
     int world_size, me;
@@ -41,7 +41,7 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
         , out {
 
         };
-        MPI_ALLreduce(&in, &out, 1, MPI_DOUBLE_INT, MPI_MAXLOC, comm);
+        MPI_Allreduce(&in, &out, 1, MPI_DOUBLE_INT, MPI_MAXLOC, comm);
 
         const int pivot_row = out.idx;
         const bool singular_col = (out.val < EPS) || (pivot_row < 0);
@@ -58,8 +58,8 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
         else {
             // column is (near) zero ⇒ broadcast zeros so everyone proceeds safely
             if (me == pivot_owner) for (int j = k; j <= n; j++) buf[j] = 0.0;
-            }
         }
+        
         MPI_Bcast(buf.data()+k, (n - k + 1), MPI_DOUBLE, pivot_owner, comm);
 
         // 5. eliminate my rows i = k+1, k+1+p, ...
@@ -75,30 +75,32 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
     }
 
     // 6. After elimination, check the three cases with rank
-    int rankA_local = 0, rankAb_local = 0;
-    for (int i = 0; i < n; i++) {
-        bool allZeroA = true;
-        for (int j = 0; j < n; j++) {
-            if(fabs(A[i][j] > EPS)) {
-                allZeroA = false;
-                break;
-            }
-        }
-        if (!allZeroA) rankA_local++;
-        else if (fabs(b[i]) > EPS) rankAb_local++; // 0 = 0, 0 = c
-    }
-    int rankA, rankAbOnlyAug;
-    MPI_Allreduce(&rankA_local, &rankA, 1, MPI_INT, MPI_MAX, comm);
-    MPI_Allreduce(&rankAb_local, &rankAbOnlyAug, 1, MPI_INT, MPI_MAX, comm);
-    int rankAb = rankA + rankAbOnlyAug;
-
+    state = UNIQUE_SOLUTION;
     if (me == 0) {
-        if (rankAb > rankA) state = NO_SOLUTION; return nullptr;
-        else if (rankA < n) state = INFINITY_SOLUTION; return nullptr;
-        else state = UNIQUE_SOLUTION;
-    }
+        int rankA = 0, rankAb = 0;
+        for (int i = 0; i < n; i++) {
+            bool zeroA = true;
+            for (int j = 0; j < n; j++) {
+                if (fabs(A[i][j]) > EPS) {
+                    zeroA = false;
+                    break;
+                }
+            }
+            if (!zeroA) rankA++;
+            else if (fabs(b[i]) > EPS) rankAb++;
+        }
 
-    // 6. backward substitution
+        if (rankAb > 0)        state = NO_SOLUTION;
+        else if (rankA < n)    state = INFINITY_SOLUTION;
+        else                   state = UNIQUE_SOLUTION;
+
+
+    }
+    MPI_Bcast(&state, 1, MPI_UNSIGNED_CHAR, 0, comm);
+
+    if (state != UNIQUE_SOLUTION) return vector<double>(n, 0.0);
+
+    // 7. backward substitution
     for (int k = n - 1; k >= 0; k--) {
         double xk = 0.0;
         if (k % loc_row == me) {
@@ -109,7 +111,7 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
         MPI_Bcast(&xk, 1, MPI_DOUBLE, k % world_size, MPI_COMM_WORLD);
         x[k] = xk;
     }
-    
+
     return x;
 }
 
