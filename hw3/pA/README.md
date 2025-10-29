@@ -176,3 +176,27 @@ right-hand side vectors b without repeating the elimination process.
 Parallel Programming for Multicore and Cluster Systems Ch7.1 p363
 
 - A matrix should be invertible
+
+## Common pitfall
+
+### Directly swap the pointer
+
+| Global row | Owner |
+| ---------- | ----- |
+| 0          | P₀    |
+| 1          | P₁    |
+| 2          | P₀    |
+| 3          | P₁    |
+
+But sometimes pivot = row 2 (on P₀)
+and row k=1 (on P₁).
+Now they belong to different address spaces.
+P₀ cannot directly touch P₁’s row array in memory.
+
+| Reason              | Explanation                                                                   |
+| ------------------- | ----------------------------------------------------------------------------- |
+| 💾 Memory isolation | Each MPI process has its own local memory; you can’t “swap pointers” globally |
+| 🚚 Communication    | Row data must be physically sent via MPI                                      |
+| 🔄 Uniform handling | `copy_*` functions abstract both local and remote swaps                       |
+| 📦 Contiguity       | MPI needs contiguous buffers for broadcast/send                               |
+| 🧱 Robustness       | Keeps logic simple even for cyclic distributions and partial ownership        |

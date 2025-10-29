@@ -1,8 +1,4 @@
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <cmath>
-#include <iomanip>
+#include <bits/stdc++.h>
 #include <mpi.h>
 using namespace std;
 
@@ -65,7 +61,7 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
         // 5. eliminate my rows i = k+1, k+1+p, ...
         int i = k + 1; 
         while (i < n && (i % world_size) != me) i++;
-        for (; i < world_size; i += world_size) {
+        for (; i < n; i += world_size) {
             if (fabs(buf[k]) < EPS) continue; // nothing to do in singular column
             double l = A[i][k] / buf[k];
             A[i][k] = 0.0;
@@ -103,12 +99,12 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
     // 7. backward substitution
     for (int k = n - 1; k >= 0; k--) {
         double xk = 0.0;
-        if (k % loc_row == me) {
+        if (k % world_size == me) {
             double sum = 0.0;
             for (int j = k + 1; j < n; j++) sum += A[k][j] * x[j];
             xk = (A[k][k] < EPS) ? 0.0 : (b[k] - sum) / A[k][k]; // handle singluar 
         }
-        MPI_Bcast(&xk, 1, MPI_DOUBLE, k % world_size, MPI_COMM_WORLD);
+        MPI_Bcast(&xk, 1, MPI_DOUBLE, k % world_size, comm);
         x[k] = xk;
     }
 
@@ -146,8 +142,8 @@ int main(int argc, char *argv[]) {
         A.assign(n, vector<double>(n));
         b.assign(n, 0.0);
         for (int i = 0; i < n; i++) {
+            string s;
             for (int j = 0; j < n; j++) {
-                string s;
                 file >> s;
                 A[i][j] = parse_token(s);
             }
@@ -183,7 +179,7 @@ int main(int argc, char *argv[]) {
     MPI_Bcast(b.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     unsigned char state;
-    vector<double> x = gauss_cyclic(A, b, n, MPI_COMM_WORLD, &state);
+    vector<double> x = gauss_cyclic(A, b, n, MPI_COMM_WORLD, state);
     
     if (world_rank == 0) {
         if (state == UNIQUE_SOLUTION) {
@@ -215,12 +211,12 @@ static inline pair<int, double> local_pivot_candidate(const vector<vector<double
     return {best_row, best}; // -1 if none owned locally
 }
 
-static inline void pack_pivot_tail(vector<vector<double>>& A, vector<double>& b, int k, int n, const vector<double>& buf) {
+static inline void pack_pivot_tail(const vector<vector<double>>& A, const vector<double>& b, int k, int n, vector<double>& buf) {
     for (int j = k; j < n; j++) buf[j] = A[k][j];
     buf[n] = b[k];
 }
 
-static inline void unpack_pivot_tail(const vector<vector<double>>& A, const vector<double>& b, int k, int n, vector<double>& buf) {
+static inline void unpack_pivot_tail(vector<vector<double>>& A, vector<double>& b, int k, int n, const vector<double>& buf) {
     for (int j = k; j < n; j++) A[k][j] = buf[j];
     b[k] = buf[n];
 }
