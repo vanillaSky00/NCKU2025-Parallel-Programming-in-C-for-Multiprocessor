@@ -207,33 +207,18 @@ int main(int argc, char *argv[]) {
     vector<double> b;
 
     if (world_rank == 0) {
-        std::string file_name;
-        if (argc < 2) {
-            cerr << "Usage: " << argv[0] << " <input_file>" << endl;
-            n = 0; 
-        } 
-        else {
-            file_name = argv[1];
-            std::ifstream file(file_name);
-            
-            if (!file.is_open()) {
-                cerr << "Error: Could not open file " << file_name << endl;
-                n = 0;
-            } 
-            else {
-                file >> n;
-                A.assign(n, vector<double>(n));
-                b.assign(n, 0.0);
-                for (int i = 0; i < n; i++) {
-                    string s;
-                    for (int j = 0; j < n; j++) {
-                        file >> s;
-                        A[i][j] = parse_token(s);
-                    }
-                    file >> s;
-                    b[i] = parse_token(s);
-                }
+        cin >> n;
+        A.assign(n, vector<double>(n));
+        b.assign(n, 0.0);
+        
+        for (int i = 0; i < n; i++) {
+            string s;
+            for (int j = 0; j < n; j++) {
+                cin >> s;
+                A[i][j] = parse_token(s);
             }
+            cin >> s;
+            b[i] = parse_token(s);
         }
     }
 

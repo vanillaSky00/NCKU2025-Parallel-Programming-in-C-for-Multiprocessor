@@ -13,15 +13,30 @@ using namespace std;
 
 static constexpr int TAG_PIVOT = 42;
 
-long long solver(vector<vector<int>>& prev, int n, int t) {
+// static inline void pack_matrix(const vector<vector<int>>& A, int n, int world_size, int me, vector<double>& buf);
+// static inline void unpack_matrix(vector<vector<int>>& A, int n, int world_size, int me, const vector<double>& buf);
 
-    long long res = 0;
+int solver(vector<vector<int>>& prev, int n, int t, MPI_comm comm) {
+    int world_size, me;
+    MPI_comm_size(comm, &world_size);
+    MPI_comm_rank(comm, &me);
+
+    int start_row, end_row;
+    int start_col, end_col;
+    int group = me / 2;
+
+    start_row = group * n + 1;
+    end_row = (group + 1) * n;
+    start_col = (me % 2) * n;
+    end_col = (me % 2 + 1) * n;
+
+    int res = 0;
     vector<vector<int>> curr(n+2, vector<int>(n+2, 0));
 
     while(t-- > 0) {
 
-        for (int i = 1; i <= n; i++) {
-            for (int j = 1; j <= n; j++) {
+        for (int i = start_row; i <= end_row; i++) {
+            for (int j = start_col; j <= end_col; j++) {
                 int v = prev[i][j] / 2 + (prev[i+1][j] + prev[i-1][j] + prev[i][j+1] + prev[i][j-1]) / 4;
                 if (v > UPPER_BOUND) v = UPPER_BOUND;
                 curr[i][j] = v;
@@ -32,7 +47,7 @@ long long solver(vector<vector<int>>& prev, int n, int t) {
 
     for (int i = 1; i <= n; i++) {
         for (int j = 1; j <= n; j++) {
-            res += (long long)prev[i][j];
+            res += prev[i][j];
         }
     }
 
@@ -58,7 +73,6 @@ int main(int argc, char *argv[]) {
 
         file >> n >> t;
         A.assign(n + 2, vector<int>(n + 2, 0));  
-
         for (int i = 1; i <= n; ++i) {
             for (int j = 1; j <= n; ++j) {
                 file >> A[i][j];
@@ -96,7 +110,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    long long res = solver(A, n, t);
+    int res = solver(A, n, t, MPI_COMM_WORLD);
 
     if (world_rank == 0) {
         cout << res << "\n"; 
