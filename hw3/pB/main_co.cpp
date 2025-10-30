@@ -47,8 +47,8 @@ long long solver(vector<vector<int>>& prev, int n, int t, MPI_Comm comm) {
 
         // bottom
         MPI_Sendrecv(
-            prev[end_row].data() + 1, n, MPI_INT, up, TAG_ROW + 1,
-            prev[start_row - 1].data() + 1, n, MPI_INT, down, TAG_ROW + 1,
+            prev[end_row].data() + 1, n, MPI_INT, down, TAG_ROW + 1,
+            prev[start_row - 1].data() + 1, n, MPI_INT, up, TAG_ROW + 1,
             comm, MPI_STATUS_IGNORE);      
     }
 
