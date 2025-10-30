@@ -200,3 +200,52 @@ P₀ cannot directly touch P₁’s row array in memory.
 | 🔄 Uniform handling | `copy_*` functions abstract both local and remote swaps                       |
 | 📦 Contiguity       | MPI needs contiguous buffers for broadcast/send                               |
 | 🧱 Robustness       | Keeps logic simple even for cyclic distributions and partial ownership        |
+
+
+
+
+
+##
+
+I'd be happy to provide an insight into the specific fix. The bug was a **critical synchronization and data inconsistency issue** during the pivot row exchange in the forward elimination step.
+
+Here is a breakdown of the fix, focusing on the changes made to the `else` block within the `gauss_cyclic` function where the pivot row ($\text{pivot\_row}$) and row $k$ are owned by **different processors**.
+
+---
+
+## 🛠️ Key Fix: Synchronized Bidirectional Row Exchange
+
+The original code used an asynchronous `MPI_Send` on one processor and an `MPI_Recv` on the other to handle the data swap. This approach was incomplete and prone to deadlocks or data races, but the core issue was a **missing data transfer** and **incorrect buffer initialization** for the subsequent broadcast.
+
+### 1. The Original Problem (Asynchronous and Incomplete Swap) ❌
+
+The logical operation required a swap: $\text{Row } k$ moves to the $\text{pivot\_row}$'s spot ($\text{pivot\_row}$), and the $\text{pivot\_row}$ moves to $\text{row } k$'s spot.
+
+* **Processor $k$ Owner (`k % world_size == me`):** It $\text{MPI\_Send}$ $\text{row } k$'s data to the $\text{pivot\_owner}$, but it **failed to $\text{MPI\_Recv}$** the old $\text{pivot\_row}$'s data (which should become the new $\text{row } k$).
+* **Pivot Owner (`pivot_owner == me`):** It $\text{MPI\_Recv}$ $\text{row } k$'s data (and updated its $\text{pivot\_row}$). Crucially, it then initialized the broadcast buffer (`buf`) with the old $\text{pivot\_row}$'s data, but it **failed to $\text{MPI\_Send}$** this old $\text{pivot\_row}$ data back to the $\text{k\_owner}$.
+
+Because the $\text{k\_owner}$ (which is the root for the broadcast) never received the correct data, it broadcasted an old, unswapped version of $\text{row } k$, leading to incorrect elimination results and a wrong final answer.
+
+### 2. The Corrected Solution (MPI\_Sendrecv) ✅
+
+The fix replaced the separate sends/receives with the **atomic $\text{MPI\_Sendrecv}$ function** to ensure a correct bidirectional exchange and proper buffer initialization.
+
+| Processor Role | Action Performed by `MPI_Sendrecv` | Resulting State |
+| :--- | :--- | :--- |
+| **Processor $k$ Owner** | **SEND:** $\text{Row } k$ data (`tmp` buffer) to $\text{pivot\_owner}$. | The $\text{pivot\_row}$ is now correctly updated on $\text{pivot\_owner}$. |
+| | **RECEIVE:** Old $\text{pivot\_row}$ data (into `buf`) from $\text{pivot\_owner}$. | The $\text{buf}$ now holds the correct data for the new $\text{row } k$, ready for $\text{Bcast}$. |
+| **Pivot Owner** | **SEND:** Old $\text{pivot\_row}$ data (from `buf`) to $\text{k\_owner}$. | The $\text{k\_owner}$ can now update its new $\text{row } k$. |
+| | **RECEIVE:** $\text{Row } k$ data (into `tmp`) from $\text{k\_owner}$. | The $\text{pivot\_row}$ is updated locally using $\text{tmp}$. |
+
+By making this change:
+1.  The $\text{k\_owner}$ uses `unpack_pivot_tail` to locally update its new $\text{row } k$ (with the received $\text{pivot\_row}$ data stored in `buf`).
+2.  The $\text{k\_owner}$'s `buf` correctly contains the data for the new $\text{row } k$ (which is the old $\text{pivot\_row}$) just before the $\text{MPI\_Bcast}$.
+3.  The $\text{pivot\_owner}$ correctly updates its local $\text{pivot\_row}$ (with the received $\text{row } k$ data stored in `tmp`).
+
+This atomic and synchronized data movement resolves the inconsistency, allowing the subsequent $\text{MPI\_Bcast}$ to propagate the correct pivot row to all processors for the elimination step.
+
+---
+
+## 📝 For Your Notes: Best Practice
+
+When implementing a parallel swap between two specific, non-contiguous rows owned by different processors, always use **$\text{MPI\_Sendrecv}$** instead of separate $\text{MPI\_Send}$ and $\text{MPI\_Recv}$ calls. This prevents deadlock (where both processors are waiting to receive before they can send) and ensures the exchange is complete and synchronized.
