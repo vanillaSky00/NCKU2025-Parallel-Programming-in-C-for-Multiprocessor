@@ -9,9 +9,10 @@
 
 using namespace std;
 
+#define UPPER_BOUND 1e6
+
 static constexpr double EPS = 1e-12; 
 static constexpr int TAG_PIVOT = 42;
-
 
 int main(int argc, char *argv[]) {
     std::ios_base::sync_with_stdio(false);
@@ -24,9 +25,7 @@ int main(int argc, char *argv[]) {
 
     int n = 0, t = 0;
     vector<vector<double>> A;
-    vector<double> b;
 
-    
     if (world_rank == 0) {
         std::string file_name;
         if (argc < 2) {
@@ -44,10 +43,9 @@ int main(int argc, char *argv[]) {
             else {
                 file >> n;
                 file >> t;
-                A.assign(n, vector<double>(n));
-                b.assign(n, 0.0);
-                for (int i = 0; i < n; i++) {
-                    for (int j = 0; j < n; j++) {
+                A.assign(n+2, vector<double>(n+2));
+                for (int i = 1; i <= n; i++) {
+                    for (int j = 1; j <= n; j++) {
                         file >> A[i][j];
                     }
                 }
@@ -64,33 +62,31 @@ int main(int argc, char *argv[]) {
     }
 
     if (world_rank != 0) {
-        A.assign(n, vector<double>(n));
-        b.assign(n, 0.0);
+        A.assign(n+2, vector<double>(n+2));
     }
 
-    vector<double> flat(n*n);
+    vector<double> flat((n+2)*(n+2));
     if (world_rank == 0) {
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
+        for (int i = 1; i <= n; i++) {
+            for (int j = 1; j <= n; j++) {
                 flat[i * n + j] = A[i][j];
             }
         }
     }
-    MPI_Bcast(flat.data(), n*n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(flat.data(), (n+2)*(n+2), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (world_rank != 0) {
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
+        for (int i = 1; i <= n; i++) {
+            for (int j = 1; j <= n; j++) {
                 A[i][j] = flat[i * n + j];
             }
         }
     }
-    MPI_Bcast(b.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (world_rank == 0) {
         cout << n << " " << t << "\n";
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) cout << A[i][j] << " ";
+        for (int i = 0; i < n+2; i++) {
+            for (int j = 0; j < n+2; j++) cout << A[i][j] << " ";
             cout << "\n";
         }
     }
