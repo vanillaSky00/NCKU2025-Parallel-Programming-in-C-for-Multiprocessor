@@ -1,7 +1,3 @@
-https://stackoverflow.com/questions/10363891/parallel-iterative-algorithms-for-solving-linear-system-of-equations
-
-
-
 ## How to solve a linear system 
 1. Unique solution
 2. Infinite solution
@@ -148,8 +144,8 @@ we assign worker1 (P1) with 1,3,5,7,... worker2 with 2,4,6,8...
 - When later elimination steps remove upper rows, the remaining active rows are still evenly spread.
 - Load is balanced — no processor sits idle too early.
 
-```
-Forward Elimination
+```markdown
+## Forward Elimination
     1. Local pivot selection
     Each processor checks its rows in column 𝑘
     k to find the largest value → its local pivot candidate.
@@ -169,9 +165,9 @@ Forward Elimination
     6. Update local matrix
     Each processor uses the pivot to eliminate elements in its own rows → local work, no need to wait.
 
-Rank checking to determine solution type
+## Rank checking to determine solution type
 
-Backward elimination
+## Backward elimination
 ```
 
 
@@ -188,16 +184,61 @@ struct { double val; int idx; } in { loc_val, loc_piv } , out {};
         constexpr int TAG_PIVOT = 42;
 ```
 
-``
+## C++ Note
+<br>
 
+| Feature | `const` | `constexpr` |
+|----------|----------|-------------|
+| **Evaluation Time** | Primarily runtime | Primarily compile-time (can be runtime for functions) |
+| **Initialization** | Can be runtime or compile-time | Must be compile-time |
+| **Implicit `const`** | No | Yes |
+| **Use in Compile-Time Contexts** | Limited (e.g., `const int` initialized with literal) | Yes (e.g., array dimensions, template arguments) |
+
+example 1:
+```c++
+const int runtime_value = get_user_input(); // Initialized at runtime
+const int compile_time_value = 10;          // Initialized at compile time
+
+void print_value(const int& value) {
+    // value cannot be modified inside this function
+}
+```
+
+example 2:
+```c++
+constexpr int compile_time_array_size = 5;
+int arr[compile_time_array_size]; // Valid because compile_time_array_size is constexpr
+
+constexpr int square(int x) {
+    return x * x;
+}
+
+
+constexpr int result_compile_time = square(3); // Evaluated at compile time
+int runtime_input = 5;
+int result_runtime = square(runtime_input);   // Evaluated at runtime
+```
 
 ## The advantage of the LU factorization
+Thanks to:
+https://stackoverflow.com/questions/10363891/parallel-iterative-algorithms-for-solving-linear-system-of-equations
+
+
+Parallel Programming for Multicore and Cluster Systems Ch7.1 p363:
 >The advantage of the LU factorization over the elimination method is that the factorization into L and U is done only once but can be used to solve several linear systems with the same matrix A and different
 right-hand side vectors b without repeating the elimination process.
 
-Parallel Programming for Multicore and Cluster Systems Ch7.1 p363
+<br>
+Also if we want unique solution A should be invertible.
 
-- A matrix should be invertible
+| Concept                              | Requires A invertible? | Reason                                              |
+| ------------------------------------ | ---------------------- | --------------------------------------------------- |
+| **Existence of LU (algebraic)**      | ❌ Not necessarily      | Can exist even if singular, though U may have zeros |
+| **LU with partial pivoting (PA=LU)** | ❌ No                   | Always exists for any square A                      |
+| **Using LU to solve Ax=b uniquely**  | ✅ Yes                  | Need A⁻¹ to exist for unique solution               |
+
+
+<br>
 
 ## Common pitfall
 
@@ -227,15 +268,11 @@ P₀ cannot directly touch P₁’s row array in memory.
 
 
 
-##
+## Synchronized Bidirectional Row Exchange
+When implementing a parallel swap between two specific, non-contiguous rows owned by different processors, always use **$\text{MPI\_Sendrecv}$** instead of separate $\text{MPI\_Send}$ and $\text{MPI\_Recv}$ calls. This prevents deadlock (where both processors are waiting to receive before they can send) and ensures the exchange is complete and synchronized.
 
-I'd be happy to provide an insight into the specific fix. The bug was a **critical synchronization and data inconsistency issue** during the pivot row exchange in the forward elimination step.
 
-Here is a breakdown of the fix, focusing on the changes made to the `else` block within the `gauss_cyclic` function where the pivot row ($\text{pivot\_row}$) and row $k$ are owned by **different processors**.
-
----
-
-## 🛠️ Key Fix: Synchronized Bidirectional Row Exchange
+🛠️ Key Fix: Synchronized Bidirectional Row Exchange
 
 The original code used an asynchronous `MPI_Send` on one processor and an `MPI_Recv` on the other to handle the data swap. This approach was incomplete and prone to deadlocks or data races, but the core issue was a **missing data transfer** and **incorrect buffer initialization** for the subsequent broadcast.
 
@@ -265,9 +302,3 @@ By making this change:
 3.  The $\text{pivot\_owner}$ correctly updates its local $\text{pivot\_row}$ (with the received $\text{row } k$ data stored in `tmp`).
 
 This atomic and synchronized data movement resolves the inconsistency, allowing the subsequent $\text{MPI\_Bcast}$ to propagate the correct pivot row to all processors for the elimination step.
-
----
-
-## 📝 For Your Notes: Best Practice
-
-When implementing a parallel swap between two specific, non-contiguous rows owned by different processors, always use **$\text{MPI\_Sendrecv}$** instead of separate $\text{MPI\_Send}$ and $\text{MPI\_Recv}$ calls. This prevents deadlock (where both processors are waiting to receive before they can send) and ensures the exchange is complete and synchronized.
