@@ -14,6 +14,8 @@ using namespace std;
 static constexpr double EPS = 1e-12; 
 static constexpr int TAG_PIVOT = 42;
 
+
+
 int main(int argc, char *argv[]) {
     std::ios_base::sync_with_stdio(false);
     std::cin.tie(0);
@@ -84,11 +86,11 @@ int main(int argc, char *argv[]) {
     }
 
     if (world_rank == 0) {
-        cout << n << " " << t << "\n";
-        for (int i = 0; i < n+2; i++) {
-            for (int j = 0; j < n+2; j++) cout << A[i][j] << " ";
-            cout << "\n";
-        }
+        // cout << n << " " << t << "\n";
+        // for (int i = 0; i < n+2; i++) {
+        //     for (int j = 0; j < n+2; j++) cout << A[i][j] << " ";
+        //     cout << "\n";
+        // }
     }
 
     MPI_Finalize();
