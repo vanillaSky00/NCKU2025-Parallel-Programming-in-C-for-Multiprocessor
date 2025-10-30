@@ -28,7 +28,8 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
     MPI_Comm_size(comm, &world_size); 
     MPI_Comm_rank(comm, &me); 
     
-    vector<double> x(n), buf(n+1), tmp(n+1); // buf is for the pivot row tail (A[k..n-1], b[n]), tmp is for communication
+    // buf is for the pivot row tail (A[k..n-1], b[n]), tmp is for communication
+    vector<double> x(n), buf(n+1), tmp(n+1); 
 
     // 1. Forward elimination 
     for (int k = 0; k < n - 1; k++) {

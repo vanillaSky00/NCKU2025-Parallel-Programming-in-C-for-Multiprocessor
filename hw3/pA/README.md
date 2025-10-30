@@ -149,25 +149,47 @@ we assign worker1 (P1) with 1,3,5,7,... worker2 with 2,4,6,8...
 - Load is balanced — no processor sits idle too early.
 
 ```
-1. Local pivot selection
-Each processor checks its rows in column 𝑘
-k to find the largest value → its local pivot candidate.
+Forward Elimination
+    1. Local pivot selection
+    Each processor checks its rows in column 𝑘
+    k to find the largest value → its local pivot candidate.
 
-2. Global pivot selection
-All processors compare their local pivots to find the overall (global) best pivot → needs communication.
+    2. Global pivot selection
+    All processors compare their local pivots to find the overall (global) best pivot → needs communication.
 
-3. Pivot row exchange
-If the global pivot is on another processor, they swap the rows (so everyone uses the correct pivot row).
+    3. Pivot row exchange
+    If the global pivot is on another processor, they swap the rows (so everyone uses the correct pivot row).
 
-4. Pivot row broadcast
-The processor owning the pivot sends it to all others — everyone needs this row to eliminate below.
+    4. Pivot row broadcast
+    The processor owning the pivot sends it to all others — everyone needs this row to eliminate below.
 
-5. Compute elimination factors
-Each processor updates its own rows below the pivot in parallel.
+    5. Compute elimination factors
+    Each processor updates its own rows below the pivot in parallel.
 
-6. Update local matrix
-Each processor uses the pivot to eliminate elements in its own rows → local work, no need to wait.
+    6. Update local matrix
+    Each processor uses the pivot to eliminate elements in its own rows → local work, no need to wait.
+
+Rank checking to determine solution type
+
+Backward elimination
 ```
+
+
+## MPI Note
+
+`MPI_Allreduce` finds the global pivot row and its value. The singular_col check is important for identifying if the system is singular or has infinite solutions.
+```c++
+struct { double val; int idx; } in { loc_val, loc_piv } , out {};
+        MPI_Allreduce(&in, &out, 1, MPI_DOUBLE_INT, MPI_MAXLOC, comm);
+
+        const int pivot_row = out.idx;
+        const bool singular_col = (out.val < EPS) || (pivot_row < 0);
+        const int pivot_owner = pivot_row < 0 ? 0 : pivot_row % world_size;
+        constexpr int TAG_PIVOT = 42;
+```
+
+``
+
 
 ## The advantage of the LU factorization
 >The advantage of the LU factorization over the elimination method is that the factorization into L and U is done only once but can be used to solve several linear systems with the same matrix A and different
