@@ -16,7 +16,7 @@ static constexpr int TAG_PIVOT = 42;
 int main(int argc, char *argv[]) {
     std::ios_base::sync_with_stdio(false);
     std::cin.tie(0);
-    MPI_Init(&argc, &argv,);
+    MPI_Init(&argc, &argv);
     
     int world_size, world_rank;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
@@ -88,7 +88,11 @@ int main(int argc, char *argv[]) {
     MPI_Bcast(b.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (world_rank == 0) {
-
+        cout << n << " " << t << "\n";
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) cout << A[i][j] << " ";
+            cout << "\n";
+        }
     }
 
     MPI_Finalize();
