@@ -20,7 +20,7 @@ long long solver(vector<vector<int>>& prev, int n, int t, MPI_Comm comm) {
 
     int rows_per = n / world_size;
     int start_row = me * rows_per + 1;
-    int end_row = me == world_size - 1 ? n : start_row + rows_per - 1;
+    int end_row = (me == world_size - 1) ? n : start_row + rows_per - 1;
 
     vector<vector<int>> curr(n+2, vector<int>(n+2, 0));
 
@@ -30,7 +30,8 @@ long long solver(vector<vector<int>>& prev, int n, int t, MPI_Comm comm) {
     while(t-- > 0) {
         for (int i = start_row; i <= end_row; i++) {
             for (int j = 1; j <= n; j++) {
-                int v = prev[i][j] / 2 + (prev[i+1][j] + prev[i-1][j] + prev[i][j+1] + prev[i][j-1]) / 4;
+                int v = prev[i][j] / 2 + 
+                        (prev[i+1][j] + prev[i-1][j] + prev[i][j+1] + prev[i][j-1]) / 4;
                 if (v > UPPER_BOUND) v = UPPER_BOUND;
                 curr[i][j] = v;
             }
@@ -41,13 +42,13 @@ long long solver(vector<vector<int>>& prev, int n, int t, MPI_Comm comm) {
         // top boundary
         MPI_Sendrecv(
             prev[start_row].data() + 1, n, MPI_INT, up, TAG_ROW,
-            prev[end_row].data() + 1, n, MPI_INT, down, TAG_ROW,
+            prev[end_row + 1].data() + 1, n, MPI_INT, down, TAG_ROW,
             comm, MPI_STATUS_IGNORE);
 
         // bottom
         MPI_Sendrecv(
-            prev[end_row].data() + 1, n, MPI_INT, up, TAG_ROW,
-            prev[start_row].data() + 1, n, MPI_INT, down, TAG_ROW,
+            prev[end_row].data() + 1, n, MPI_INT, up, TAG_ROW + 1,
+            prev[start_row - 1].data() + 1, n, MPI_INT, down, TAG_ROW + 1,
             comm, MPI_STATUS_IGNORE);      
     }
 
