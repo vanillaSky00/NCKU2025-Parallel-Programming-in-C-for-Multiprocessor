@@ -225,11 +225,13 @@ int main(int argc, char *argv[]) {
             b[i] = parse_token(s);
         }
     }
-    cout << "(rank,n)" << world_rank << "," << n << "\n";
+
 
     // Broadcast n, matrix A (flated), and vector b
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
     
+    // cout << "(rank,n)" << world_rank << "," << n << "\n";
+
     if (n == 0) {
         MPI_Finalize();
         return 0; // Exit if file reading failed
