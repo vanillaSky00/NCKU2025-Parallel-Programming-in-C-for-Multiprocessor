@@ -144,6 +144,18 @@ we assign worker1 (P1) with 1,3,5,7,... worker2 with 2,4,6,8...
 - When later elimination steps remove upper rows, the remaining active rows are still evenly spread.
 - Load is balanced — no processor sits idle too early.
 
+<br>
+
+```
+for (int k = 0; k < n - 1; k++) {
+    // pivot selection
+    // maybe swap
+    // broadcast pivot row
+    // elimination on my rows
+}
+```
+
+
 ```markdown
 ## Forward Elimination
     1. Local pivot selection

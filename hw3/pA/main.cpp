@@ -2,6 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <limits>
 #include <mpi.h>
 #include <iomanip>
 #include <fstream>
@@ -33,71 +34,63 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
 
     // 1. Forward elimination 
     for (int k = 0; k < n - 1; k++) {
-        // a. Local pivot selection 
+        
         auto [loc_piv, loc_val] = local_pivot_candidate(A, k, n, world_size, me); 
         
         // b. Global pivot selection 
         struct { double val; int idx; } in { loc_val, loc_piv } , out {}; 
         MPI_Allreduce(&in, &out, 1, MPI_DOUBLE_INT, MPI_MAXLOC, comm); 
         
-        const int pivot_row = out.idx; 
+        const int pivot_row     = out.idx; 
         const bool singular_col = (out.val < EPS) || (pivot_row < 0); 
-        const int pivot_owner = pivot_row < 0 ? 0 : pivot_row % world_size; 
+        const int pivot_owner   = pivot_row < 0 ? 0 : pivot_row % world_size; 
+        const int k_owner = k % world_size;
 
         if (!singular_col) {
-            
             // c. Pivot Row Exchange and Broadcast Preparation
-            if (pivot_owner == me && k % world_size == me) {
-                // Case 1: Pivot row (r) and row k are on the same processor (me)
+            if (pivot_owner == me && k_owner == me) {
+                //case 1: pivot and k on same rank → do local swap → copy to buffer
                 if (pivot_row != k) swap_rows(A, b, pivot_row, k);
                 pack_pivot_tail(A, b, k, n, buf); // Row k (the pivot row) goes into buf
             }
             else {
-                // Case 2: Pivot row (r) and row k are on different processors
-                if (k % world_size == me) {
-                    // Processor k owner: Send row k, Receive pivot_row (to become new row k)
+                // case 2a: I am k-owner → send my row k, receive pivot → overwrite my k
+                if (k_owner == me) {
+                    
                     pack_pivot_tail(A, b, k, n, tmp); // tmp contains row k data (to send)
                     
-                    // Send row k, Receive pivot_row into buf
                     MPI_Sendrecv(tmp.data() + k, n - k + 1, MPI_DOUBLE, pivot_owner, TAG_PIVOT,
-                                 buf.data() + k, n - k + 1, MPI_DOUBLE, pivot_owner, TAG_PIVOT,
-                                 comm, MPI_STATUS_IGNORE);
-                    
-                    // Update local row k with received pivot_row (now in buf)
-                    unpack_pivot_tail(A, b, k, n, buf); 
-                    
+                                buf.data() + k, n - k + 1, MPI_DOUBLE, pivot_owner, TAG_PIVOT,
+                                comm, MPI_STATUS_IGNORE);
+
                     // buf now holds the data for the new row k (the old pivot_row), ready for Bcast
+                    unpack_pivot_tail(A, b, k, n, buf); 
                 }
                 else if (pivot_owner == me) {
-                    // Pivot owner: Receive row k (to become new pivot_row), Send pivot_row (to become new row k)
+                    // case 2b: I am pivot-owner → send pivot, receive row k → overwrite pivot-row
                     pack_pivot_tail(A, b, pivot_row, n, buf); // buf contains pivot_row data (to send)
                     
-                    // Send pivot_row, Receive row k into tmp
-                    MPI_Sendrecv(buf.data() + k, n - k + 1, MPI_DOUBLE, k % world_size, TAG_PIVOT,
-                                 tmp.data() + k, n - k + 1, MPI_DOUBLE, k % world_size, TAG_PIVOT,
-                                 comm, MPI_STATUS_IGNORE);
+                    MPI_Sendrecv(buf.data() + k, n - k + 1, MPI_DOUBLE, k_owner, TAG_PIVOT,
+                                tmp.data() + k, n - k + 1, MPI_DOUBLE, k_owner, TAG_PIVOT,
+                                comm, MPI_STATUS_IGNORE);
                     
                     // Update local pivot_row with received row k (now in tmp)
-                    unpack_pivot_tail(A, b, pivot_row, n, tmp);
-                    
                     // buf already holds the old pivot_row data, which is the new row k data, ready for Bcast
+                    unpack_pivot_tail(A, b, pivot_row, n, tmp);
+
                 }
             }
         } 
         else {
             // Singular column: root must zero the buf for consistency before Bcast
-            if (me == (k % world_size)) std::fill(buf.begin() + k, buf.end(), 0.0);
+            if (me == (k_owner)) std::fill(buf.begin() + k, buf.end(), 0.0);
         }
 
-        // d. Broadcast the pivot row tail (now at row k)
-        int root = singular_col ? (k % world_size) : (k % world_size); // Root should be k's owner
-        // NOTE: The data for Bcast is in 'buf' on the root processor (k's owner)
-        // If the pivot row r != k, the new row k is the OLD pivot row r.
-        MPI_Bcast(buf.data() + k, n - k + 1, MPI_DOUBLE, root, comm);
+        MPI_Bcast(buf.data() + k, n - k + 1, MPI_DOUBLE, pivot_owner, comm);
 
-        // e. Make every replica's row k identical (This is critical for processors that weren't k's owner)
-        unpack_pivot_tail(A, b, k, n, buf);
-        
+        if ((k_owner != pivot_owner) && (me == k_owner))
+            unpack_pivot_tail(A, b, k, n, buf);
+
         // f. Elimination on my rows i = k+1, k+1+p, ... 
         int i = k + 1;
         while (i < n && (i % world_size) != me) i++;
