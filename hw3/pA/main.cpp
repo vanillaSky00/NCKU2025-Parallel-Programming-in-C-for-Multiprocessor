@@ -108,7 +108,6 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
     // 2. Check for singularity/rank
     state = UNIQUE_SOLUTION; 
     if (me == 0) { 
-        // Note: This rank check is simplified and only works if all processors have a full copy of A/b.
         int rankA = 0, rankAb = 0; 
         for (int i = 0; i < n; i++) { 
             bool zeroA = true; 
@@ -265,7 +264,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (world_rank != 0) {
-        A.assign(n, vector<double>(n));
+        A.assign(n, vector<double>(n, 0.0));
         b.assign(n, 0.0);
     }
 
