@@ -207,20 +207,25 @@ int main(int argc, char *argv[]) {
     vector<double> b;
 
     if (world_rank == 0) {
-        cin >> n;
-        A.assign(n, vector<double>(n));
+        string file_name;
+        cin >> file_name;
+        ifstream file(file_name);
+
+        file >> n;
+        A.assign(n, vector<double>(n, 0.0));
         b.assign(n, 0.0);
         
         for (int i = 0; i < n; i++) {
             string s;
             for (int j = 0; j < n; j++) {
-                cin >> s;
+                file >> s;
                 A[i][j] = parse_token(s);
             }
-            cin >> s;
+            file >> s;
             b[i] = parse_token(s);
         }
     }
+    cout << "(rank,n)" << world_rank << "," << n << "\n";
 
     // Broadcast n, matrix A (flated), and vector b
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -266,6 +271,14 @@ int main(int argc, char *argv[]) {
         else if (state == INFINITY_SOLUTION) cout << "Infinite Solutions\n";
         else cout << "No Solution\n";
     }
+
+    // cout << world_rank << "\n";
+    // for (int i = 0; i < n; i++) {
+    //     for (int j = 0; j < n; j++) {
+    //         cout << A[i][j] << " ";
+    //     }
+    //     cout << "\n";
+    // }
 
     MPI_Finalize();
     return 0;

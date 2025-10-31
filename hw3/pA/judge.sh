@@ -161,6 +161,14 @@ for input_file in "${input_files[@]}"; do
         exit 1
     fi
     
+
+    # Check if output is empty
+    if [ ! -s temp.out ]; then
+        echo "Wrong Answer on Test #$test_num: Output is empty."
+        rm -f temp.out
+        exit 1
+    fi
+
     # Compare output with expected output using floating-point tolerance
     if ! compare_outputs temp.out "$output_file" "$test_num"; then
         rm -f temp.out
