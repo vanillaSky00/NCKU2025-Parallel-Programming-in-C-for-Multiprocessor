@@ -147,7 +147,7 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
 
 static inline pair<int, double> local_pivot_candidate(const vector<vector<double>>& A, int k, int n, int world_size, int me) {
     int best_row = -1;
-    double best = -1.0;
+    double best = -std::numeric_limits<double>::infinity();
 
     for (int i = k; i < n; i++) {
         if ((i % world_size) != me) continue;
@@ -260,7 +260,7 @@ int main(int argc, char *argv[]) {
     if (world_rank == 0) {
         if (state == UNIQUE_SOLUTION) {
             cout.setf(std::ios::fixed);
-            cout << setprecision(10);
+            cout << setprecision(8);
             for (int i = 0; i < n; i++) cout << x[i] << (i+1 == n ? '\n' : ' ');
         }
         else if (state == INFINITY_SOLUTION) cout << "Infinite Solutions\n";
