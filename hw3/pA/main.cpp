@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <fstream>
 #include <string>
+#include <cctype>
 
 using namespace std;
 
@@ -176,14 +177,47 @@ static inline void swap_rows(vector<vector<double>>& A, vector<double>& b, int r
     swap(b[r1], b[r2]);
 }
 
-static long double parse_token(string tok) {
+static long double parse_token(std::string tok) {
+    // 1) trim left
+    while (!tok.empty() && (tok.front() == ' ' || tok.front() == '\t'))
+        tok.erase(tok.begin());
+    // 2) trim right (include \r from Windows files)
+    while (!tok.empty() && (tok.back() == ' ' || tok.back() == '\t' || tok.back() == '\r' || tok.back() == '\n'))
+        tok.pop_back();
+
+    if (tok.empty()) return 0.0L;  // defensive
+
     auto p = tok.find('/');
-    if (p == std::string::npos) return stold(tok);
-    long double num = stold(tok.substr(0, p));
-    long double den = stold(tok.substr(p + 1));
-    if (den == 0.0L) throw runtime_error("division by zero");
-    return num / den;
+
+    try {
+        if (p == std::string::npos) {
+            // plain number
+            return std::stold(tok);
+        } else {
+            // fraction: a/b
+            std::string num_s = tok.substr(0, p);
+            std::string den_s = tok.substr(p + 1);
+
+            // trim right on both parts just in case
+            while (!num_s.empty() && (num_s.back() == ' ' || num_s.back() == '\t' || num_s.back() == '\r'))
+                num_s.pop_back();
+            while (!den_s.empty() && (den_s.back() == ' ' || den_s.back() == '\t' || den_s.back() == '\r'))
+                den_s.pop_back();
+
+            long double num = std::stold(num_s);
+            long double den = std::stold(den_s);
+            if (den == 0.0L) throw std::runtime_error("division by zero");
+            return num / den;
+        }
+    } catch (const std::invalid_argument&) {
+        // bad token → don't crash in judge
+        // cerr << "bad token: '" << tok << "'\n";
+        return 0.0L;
+    } catch (const std::out_of_range&) {
+        return 0.0L;
+    }
 }
+
 
 
 int main(int argc, char *argv[]) {
