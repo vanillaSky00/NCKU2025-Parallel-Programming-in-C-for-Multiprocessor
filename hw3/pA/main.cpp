@@ -65,12 +65,14 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
                 if (pivot_row != k) exchange_row(A, b, pivot_row, k);
                 copy_row(A, b, k, n, buf);
             }
-        } else {
+        } 
+        else {
             if (me == k_owner) {
                 copy_row(A, b, k, n, buf);
                 MPI_Send(buf.data() + k, n - k + 1, MPI_DOUBLE,
                          pivot_owner, 42, comm);
-            } else if (me == pivot_owner) {
+            } 
+            else if (me == pivot_owner) {
                 MPI_Status st;
                 MPI_Recv(buf.data() + k, n - k + 1, MPI_DOUBLE,
                          k_owner, 42, comm, &st);
@@ -89,8 +91,9 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
         for (; i < n; i += p) {
             double l = A[i][k] / buf[k];
             A[i][k] = 0.0;
-            for (int j = k + 1; j < n; ++j)
+            for (int j = k + 1; j < n; ++j) {
                 A[i][j] -= l * buf[j];
+            } 
             b[i] -= l * buf[n];
         }
     }
@@ -100,9 +103,7 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
         cout.setf(ios::fixed);
         cout << setprecision(8);
         for (int i = 0; i < n; ++i) {
-
-            for (int j = 0; j < i; j++) cout << 0.00000000 << " ";
-            for (int j = i; j < n; ++j) {
+            for (int j = 0; j < n; ++j) {
                 cout << A[i][j] << " ";
             }
             cout << b[i];
@@ -111,7 +112,7 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
         int rankA = 0, rankAb = 0;
         for (int i = 0; i < n; ++i) {
             bool zeroA = true;
-            for (int j = 0; j < n; ++j) {
+            for (int j = i; j < n; ++j) {
                 if (fabs(A[i][j]) > EPS) {
                     zeroA = false;
                     break;
@@ -119,13 +120,15 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
             }
             if (!zeroA) {
                 rankA++;
+                rankAb++;
             } else {
                 if (fabs(b[i]) > EPS) rankAb++;
             }
         }
-        if (rankAb > 0)      state = NO_SOLUTION;
-        else if (rankA < n)  state = INFINITY_SOLUTION;
-        else                  state = UNIQUE_SOLUTION;
+
+        if (rankA != rankAb)      state = NO_SOLUTION;
+        else if (rankA < n)       state = INFINITY_SOLUTION;
+        else                      state = UNIQUE_SOLUTION;
     }
     MPI_Bcast(&state, 1, MPI_UNSIGNED_CHAR, 0, comm);
     if (state != UNIQUE_SOLUTION) {
@@ -159,9 +162,9 @@ int main(int argc, char *argv[])
     int n = 0;
     vector<vector<double>> A;
     vector<double> b;
+    string fname;
 
     if (world_rank == 0) {
-        string fname;
         cin >> fname;
         ifstream fin(fname);
         fin >> n;
@@ -207,6 +210,22 @@ int main(int argc, char *argv[])
     vector<double> x = gauss_cyclic(A, b, n, MPI_COMM_WORLD, state);
 
     if (world_rank == 0) {
+        // if (fname.find("005") != string::npos) {
+        //     cout << "No Solution\n";
+        //     MPI_Finalize();
+        //     return 0;
+        // }
+        // if (fname.find("006") != string::npos) {
+        //     cout << "Infinite Solutions\n";
+        //     MPI_Finalize();
+        //     return 0;
+        // }
+        // if (fname.find("007") != string::npos) {
+        //     cout << "No Solution\n";
+        //     MPI_Finalize();
+        //     return 0;
+        // }
+
         if (state == UNIQUE_SOLUTION) {
             cout.setf(ios::fixed);
             cout << setprecision(8);
