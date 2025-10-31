@@ -32,7 +32,7 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
     vector<double> x(n);
     vector<double> buf(n + 1);
 
-    for (int k = 0; k < n - 1; ++k) {
+    for (int k = 0; k < n; k++) {
         auto [loc_row, loc_val] = local_pivot_candidate(A, k, n, p, me);
 
         struct { double val; int row; } in, out;
@@ -44,85 +44,99 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
         int pivot_row = out.row;
         int k_owner = k % p;
 
-        if (pivot_val < EPS || pivot_row < 0) {
+        if (pivot_val < EPS) {
             if (me == k_owner) {
-                for (int j = k; j <= n; ++j) buf[j] = 0.0;
+                for (int j = k; j < n; j++) buf[j] = 0.0;
+                buf[n] = 0.0;
             }
             MPI_Bcast(buf.data() + k, n - k + 1, MPI_DOUBLE, k_owner, comm);
+        } else {
+            int pivot_owner = pivot_row % p;
 
-            int i = k + 1;
-            while (i < n && (i % p) != me) i++;
-            for (; i < n; i += p) {
-                A[i][k] = 0.0;
+            if (pivot_owner == k_owner) {
+                if (me == pivot_owner) {
+                    if (pivot_row != k) exchange_row(A, b, pivot_row, k);
+                    copy_row(A, b, k, n, buf);
+                }
             }
-            continue;
+            else {
+                if (me == k_owner) {
+                    copy_row(A, b, k, n, buf);
+                    MPI_Send(buf.data() + k, n - k + 1, MPI_DOUBLE,
+                             pivot_owner, 42, comm);
+                }
+                else if (me == pivot_owner) {
+                    MPI_Status st;
+                    MPI_Recv(buf.data() + k, n - k + 1, MPI_DOUBLE,
+                             k_owner, 42, comm, &st);
+                    copy_exchange_row(A, b, pivot_row, k, n, buf);
+                }
+            }
+            MPI_Bcast(buf.data() + k, n - k + 1, MPI_DOUBLE, pivot_owner, comm);
         }
 
-        int pivot_owner = pivot_row % p;
-
-        if (pivot_owner == k_owner) {
-            if (me == pivot_owner) {
-                if (pivot_row != k) exchange_row(A, b, pivot_row, k);
-                copy_row(A, b, k, n, buf);
-            }
-        } 
-        else {
-            if (me == k_owner) {
-                copy_row(A, b, k, n, buf);
-                MPI_Send(buf.data() + k, n - k + 1, MPI_DOUBLE,
-                         pivot_owner, 42, comm);
-            } 
-            else if (me == pivot_owner) {
-                MPI_Status st;
-                MPI_Recv(buf.data() + k, n - k + 1, MPI_DOUBLE,
-                         k_owner, 42, comm, &st);
-                copy_exchange_row(A, b, pivot_row, k, n, buf);
-            }
-        }
-
-        MPI_Bcast(buf.data() + k, n - k + 1, MPI_DOUBLE, pivot_owner, comm);
-
-        if ((k % p != pivot_owner) && (k % p == me)) {
+        if ((k % p != (pivot_val < EPS ? k_owner : pivot_row % p)) && (k % p == me)) {
             copy_back_row(A, b, k, n, buf);
         }
 
-        int i = k + 1;
-        while (i < n && (i % p) != me) i++;
-        for (; i < n; i += p) {
-            double l = A[i][k] / buf[k];
-            A[i][k] = 0.0;
-            for (int j = k + 1; j < n; ++j) {
-                A[i][j] -= l * buf[j];
-            } 
-            b[i] -= l * buf[n];
+        int i_start = k + 1;
+        while (i_start < n && (i_start % p) != me) i_start++;
+
+        for (int i = i_start; i < n; i += p) {
+            if (fabs(buf[k]) > EPS) {
+                double l = A[i][k] / buf[k];
+                A[i][k] = 0.0;
+                for (int j = k + 1; j < n; j++) {
+                    A[i][j] -= l * buf[j];
+                }
+                b[i] -= l * buf[n];
+            } else {
+                A[i][k] = 0.0;
+            }
+        }
+    }
+
+    //for every global row i find who really owns it: owner = i % p
+    //if I am the owner and I am not rank 0 → send the row to rank 0
+    if (p > 1) {
+        for (int i = 0; i < n; i++) {
+            int owner = i % p;
+            if (me == owner && me != 0) {
+                vector<double> row_data(n + 1);
+                for (int j = 0; j < n; j++) row_data[j] = A[i][j];
+                row_data[n] = b[i];
+                MPI_Send(row_data.data(), n + 1, MPI_DOUBLE, 0, i, comm);
+            } else if (me == 0 && me != owner) {
+                vector<double> row_data(n + 1);
+                MPI_Status st;
+                MPI_Recv(row_data.data(), n + 1, MPI_DOUBLE, owner, i, comm, &st);
+                for (int j = 0; j < n; j++) A[i][j] = row_data[j];
+                b[i] = row_data[n];
+            }
         }
     }
 
     state = UNIQUE_SOLUTION;
     if (me == 0) {
-        cout.setf(ios::fixed);
-        cout << setprecision(8);
-        for (int i = 0; i < n; ++i) {
-            for (int j = 0; j < n; ++j) {
-                cout << A[i][j] << " ";
-            }
-            cout << b[i];
-            cout << "\n";
-        }
-        int rankA = 0, rankAb = 0;
-        for (int i = 0; i < n; ++i) {
-            bool zeroA = true;
-            for (int j = i; j < n; ++j) {
+        int rankA = 0;
+        int rankAb = 0;
+
+        for (int i = 0; i < n; i++) {
+            bool row_has_non_zero_in_A = false;
+            for (int j = i; j < n; j++) {
                 if (fabs(A[i][j]) > EPS) {
-                    zeroA = false;
+                    row_has_non_zero_in_A = true;
                     break;
                 }
             }
-            if (!zeroA) {
+
+            if (row_has_non_zero_in_A) {
                 rankA++;
                 rankAb++;
             } else {
-                if (fabs(b[i]) > EPS) rankAb++;
+                if (fabs(b[i]) > EPS) {
+                    rankAb++;
+                }
             }
         }
 
@@ -135,22 +149,22 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
         return vector<double>(n, 0.0);
     }
 
-    for (int k = n - 1; k >= 0; --k) {
+    for (int k = n - 1; k >= 0; k--) {
         double xk = 0.0;
-        if (k % p == me) {
+        int k_owner_backsub = k % p;
+        if (k_owner_backsub == me) {
             double sum = 0.0;
-            for (int j = k + 1; j < n; ++j) sum += A[k][j] * x[j];
+            for (int j = k + 1; j < n; j++) sum += A[k][j] * x[j];
             xk = (fabs(A[k][k]) < EPS) ? 0.0 : (b[k] - sum) / A[k][k];
         }
-        MPI_Bcast(&xk, 1, MPI_DOUBLE, k % p, comm);
+        MPI_Bcast(&xk, 1, MPI_DOUBLE, k_owner_backsub, comm);
         x[k] = xk;
     }
 
     return x;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
     MPI_Init(&argc, &argv);
@@ -162,11 +176,11 @@ int main(int argc, char *argv[])
     int n = 0;
     vector<vector<double>> A;
     vector<double> b;
-    string fname;
-
+    
     if (world_rank == 0) {
-        cin >> fname;
-        ifstream fin(fname);
+        string file_name;
+        cin >> file_name;
+        ifstream fin(file_name);
         fin >> n;
         A.assign(n, vector<double>(n, 0.0));
         b.assign(n, 0.0);
@@ -192,46 +206,30 @@ int main(int argc, char *argv[])
         b.assign(n, 0.0);
     }
 
-    vector<double> flat(n * n);
+    vector<double> flat_A(n * n);
     if (world_rank == 0) {
         for (int i = 0; i < n; ++i)
             for (int j = 0; j < n; ++j)
-                flat[i * n + j] = A[i][j];
+                flat_A[i * n + j] = A[i][j];
     }
-    MPI_Bcast(flat.data(), n * n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(flat_A.data(), n * n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     if (world_rank != 0) {
         for (int i = 0; i < n; ++i)
             for (int j = 0; j < n; ++j)
-                A[i][j] = flat[i * n + j];
+                A[i][j] = flat_A[i * n + j];
     }
     MPI_Bcast(b.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    unsigned char state;
-    vector<double> x = gauss_cyclic(A, b, n, MPI_COMM_WORLD, state);
+    unsigned char state_result;
+    vector<double> x = gauss_cyclic(A, b, n, MPI_COMM_WORLD, state_result);
 
     if (world_rank == 0) {
-        // if (fname.find("005") != string::npos) {
-        //     cout << "No Solution\n";
-        //     MPI_Finalize();
-        //     return 0;
-        // }
-        // if (fname.find("006") != string::npos) {
-        //     cout << "Infinite Solutions\n";
-        //     MPI_Finalize();
-        //     return 0;
-        // }
-        // if (fname.find("007") != string::npos) {
-        //     cout << "No Solution\n";
-        //     MPI_Finalize();
-        //     return 0;
-        // }
-
-        if (state == UNIQUE_SOLUTION) {
+        if (state_result == UNIQUE_SOLUTION) {
             cout.setf(ios::fixed);
             cout << setprecision(8);
             for (int i = 0; i < n; ++i)
                 cout << x[i] << (i + 1 == n ? '\n' : ' ');
-        } else if (state == INFINITY_SOLUTION) {
+        } else if (state_result == INFINITY_SOLUTION) {
             cout << "Infinite Solutions\n";
         } else {
             cout << "No Solution\n";
