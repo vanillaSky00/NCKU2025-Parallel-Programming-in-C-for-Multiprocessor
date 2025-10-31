@@ -15,14 +15,15 @@ using namespace std;
 #define INFINITY_SOLUTION 1
 #define NO_SOLUTION 2
 
-static constexpr double EPS = 1e-12; 
+static constexpr double EPS = 1e-12;
 static constexpr int TAG_PIVOT_DATA = 42; // Tag for sending/receiving pivot row data
 static constexpr int TAG_ROW_K_DATA = 43; // Tag for sending/receiving row k data
 
-static inline pair<int, double> local_pivot_candidate(const vector<vector<double>>& A, int k, int n, int world_size, int me); 
-static inline void swap_rows(vector<vector<double>>& A, vector<double>& b, int r1, int r2); 
-static inline void pack_pivot_tail(const vector<vector<double>>& A, const vector<double>& b, int k, int n, vector<double>& buf); 
-static inline void unpack_pivot_tail(vector<vector<double>>& A, vector<double>& b, int k, int n, const vector<double>& buf); 
+
+static inline pair<int, double> local_pivot_candidate(const vector<vector<double>>& A, int k, int n, int world_size, int me);
+static inline void swap_rows(vector<vector<double>>& A, vector<double>& b, int r1, int r2);
+static inline void pack_pivot_tail(const vector<vector<double>>& A, const vector<double>& b, int k, int n, vector<double>& buf);
+static inline void unpack_pivot_tail(vector<vector<double>>& A, vector<double>& b, int k, int n, const vector<double>& buf);
 static long double parse_token(string tok);
 
 
@@ -40,7 +41,7 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
 
         auto [loc_piv, loc_val] = local_pivot_candidate(A, k, n, world_size, me);
 
-        // Global pivot selection 
+
         struct { double val; int idx; } in { loc_val, loc_piv } , out {};
         MPI_Allreduce(&in, &out, 1, MPI_DOUBLE_INT, MPI_MAXLOC, comm);
 
@@ -57,6 +58,7 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
             if (k_owner == me) { 
                 if (pivot_owner == me) { 
                     if (pivot_row != k) swap_rows(A, b, pivot_row, k);
+                    // Row 'k' now contains the pivot row. Pack it into the buffer for broadcast.
                     pack_pivot_tail(A, b, k, n, pivot_row_buf);
                 } else { // I own row 'k', but the pivot row is on a different process ('pivot_owner')
                     // Send my current row 'k' data to 'pivot_owner'.
@@ -101,7 +103,8 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
         // All processes will receive the pivot row (or zeroed data if singular) into their 'pivot_row_buf'.
         MPI_Bcast(pivot_row_buf.data() + k, n - k + 1, MPI_DOUBLE, pivot_owner, comm);
 
-
+        // f. Elimination step on current process's assigned rows.
+        // Iterate over rows 'i' that this process owns, starting from 'k+1'.
         int i = k + 1;
         while (i < n && (i % world_size) != me) i++; 
         if (fabs(pivot_row_buf[k]) >= EPS) { 
@@ -128,8 +131,8 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
                     break;
                 }
             }
-            if (!zeroA) rankA++; 
-            else if (fabs(b[i]) > EPS) rankAb++; 
+            if (!zeroA) rankA++;                 // Row is not all zeros, so it contributes to rankA
+            else if (fabs(b[i]) > EPS) rankAb++; // Row is all zeros in A, but b is non-zero (inconsistent)
         }
 
         if (rankAb > 0) state = NO_SOLUTION;
@@ -143,12 +146,14 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
     }
 
     // 3. Backward substitution
+    // Processes solve for their owned components of x in reverse order.
+    // Each solved x[k] is broadcast to all processes.
     for (int k = n - 1; k >= 0; k--) {
         double xk = 0.0;
         if (k % world_size == me) { // If I own this row 'k'
             double sum = 0.0;
             for (int j = k + 1; j < n; j++) {
-                sum += A[k][j] * x[j]; // Use previously calculated x values
+                sum += A[k][j] * x[j]; 
             }
             xk = (fabs(A[k][k]) < EPS) ? 0.0 : (b[k] - sum) / A[k][k];
         }
@@ -166,25 +171,16 @@ static inline pair<int, double> local_pivot_candidate(const vector<vector<double
     double best = -std::numeric_limits<double>::infinity();
 
     for (int i = k; i < n; i++) {
-        if ((i % world_size) != me) continue;
+        if ((i % world_size) != me) continue; // Only consider rows owned by 'me'
         double v = fabs(A[i][k]);
         if (v > best) {
             best_row = i;
             best = v;
         }
     }
-    return {best_row, best}; // -1 if none owned locally
+    return {best_row, best}; // Returns -1 if no rows are owned locally from k to n-1
 }
 
-static inline void pack_pivot_tail(const vector<vector<double>>& A, const vector<double>& b, int k, int n, vector<double>& buf) {
-    for (int j = k; j < n; j++) buf[j] = A[k][j];
-    buf[n] = b[k];
-}
-
-static inline void unpack_pivot_tail(vector<vector<double>>& A, vector<double>& b, int k, int n, const vector<double>& buf) {
-    for (int j = k; j < n; j++) A[k][j] = buf[j];
-    b[k] = buf[n];
-}
 
 static inline void swap_rows(vector<vector<double>>& A, vector<double>& b, int r1, int r2) {
     if (r1 == r2) return;
@@ -192,6 +188,19 @@ static inline void swap_rows(vector<vector<double>>& A, vector<double>& b, int r
     swap(b[r1], b[r2]);
 }
 
+
+static inline void pack_pivot_tail(const vector<vector<double>>& A, const vector<double>& b, int k, int n, vector<double>& buf) {
+    for (int j = k; j < n; j++) buf[j] = A[k][j];
+    buf[n] = b[k]; 
+}
+
+
+static inline void unpack_pivot_tail(vector<vector<double>>& A, vector<double>& b, int k, int n, const vector<double>& buf) {
+    for (int j = k; j < n; j++) A[k][j] = buf[j];
+    b[k] = buf[n]; 
+}
+
+// Parses a string token, handling fractions and trimming whitespace.
 static long double parse_token(std::string tok) {
     // 1) trim left
     while (!tok.empty() && (tok.front() == ' ' || tok.front() == '\t'))
@@ -200,7 +209,7 @@ static long double parse_token(std::string tok) {
     while (!tok.empty() && (tok.back() == ' ' || tok.back() == '\t' || tok.back() == '\r' || tok.back() == '\n'))
         tok.pop_back();
 
-    if (tok.empty()) return 0.0L;  // defensive
+    if (tok.empty()) return 0.0L;
 
     auto p = tok.find('/');
 
@@ -225,8 +234,6 @@ static long double parse_token(std::string tok) {
             return num / den;
         }
     } catch (const std::invalid_argument&) {
-        // bad token → don't crash in judge
-        // cerr << "bad token: '" << tok << "'\n";
         return 0.0L;
     } catch (const std::out_of_range&) {
         return 0.0L;
@@ -238,72 +245,81 @@ int main(int argc, char *argv[]) {
     std::ios_base::sync_with_stdio(false);
     std::cin.tie(0);
     MPI_Init(&argc, &argv);
-    
+
     int world_size, world_rank;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
-    int n = 0;
+    int n = 0; 
     vector<vector<double>> A;
-    vector<double> b;
+    vector<double> b;        
 
     if (world_rank == 0) {
         string file_name;
-        cin >> file_name;
+        cin >> file_name; 
         ifstream file(file_name);
 
-        file >> n;
-        A.assign(n, vector<double>(n, 0.0));
-        b.assign(n, 0.0);
-        
-        for (int i = 0; i < n; i++) {
-            string s;
-            for (int j = 0; j < n; j++) {
+        if (!file.is_open()) {
+            cerr << "Error: Could not open file " << file_name << endl;
+            n = 0; // Signal an error to other processes
+        } else {
+            file >> n; 
+            A.assign(n, vector<double>(n, 0.0));
+            b.assign(n, 0.0);
+
+            for (int i = 0; i < n; i++) {
+                string s;
+                for (int j = 0; j < n; j++) {
+                    file >> s;
+                    A[i][j] = parse_token(s);
+                }
                 file >> s;
-                A[i][j] = parse_token(s);
+                b[i] = parse_token(s);
             }
-            file >> s;
-            b[i] = parse_token(s);
+            file.close();
         }
     }
 
-    // Broadcast n, matrix A (flated), and vector b
-    MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    
-    // cout << "(rank,n)" << world_rank << "," << n << "\n";
 
-    if (n == 0) {
+    MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (n == 0) { 
         MPI_Finalize();
-        return 0; 
+        return 0;
     }
+
 
     if (world_rank != 0) {
         A.assign(n, vector<double>(n, 0.0));
         b.assign(n, 0.0);
     }
 
-    vector<double> flat(n*n);
+    // Flatten matrix A for broadcasting
+    vector<double> flat_A(n * n);
     if (world_rank == 0) {
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
-                flat[i * n + j] = A[i][j];
+                flat_A[i * n + j] = A[i][j];
             }
         }
     }
-    MPI_Bcast(flat.data(), n*n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
+    MPI_Bcast(flat_A.data(), n * n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    // All processes (except 0) unflatten A
     if (world_rank != 0) {
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
-                A[i][j] = flat[i * n + j];
+                A[i][j] = flat_A[i * n + j];
             }
         }
     }
+
     MPI_Bcast(b.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     unsigned char state;
-    vector<double> x = gauss_cyclic(A, b, n, MPI_COMM_WORLD, state);
-    
+    vector<double> x = gauss_cyclic(A, b, n, MPI_COMM_WORLD, state); 
+
     if (world_rank == 0) {
         if (state == UNIQUE_SOLUTION) {
             cout.setf(std::ios::fixed);
@@ -313,14 +329,6 @@ int main(int argc, char *argv[]) {
         else if (state == INFINITY_SOLUTION) cout << "Infinite Solutions\n";
         else cout << "No Solution\n";
     }
-
-    // cout << world_rank << "\n";
-    // for (int i = 0; i < n; i++) {
-    //     for (int j = 0; j < n; j++) {
-    //         cout << A[i][j] << " ";
-    //     }
-    //     cout << "\n";
-    // }
 
     MPI_Finalize();
     return 0;
