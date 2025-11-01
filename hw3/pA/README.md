@@ -266,6 +266,10 @@ MPI_Allreduce(&in, &out, 1, MPI_DOUBLE_INT, MPI_MAXLOC, comm);
 // 3 MPI_DOUBLE_INT = predefined MPI struct type {double, int} for pairwise reductions.
 // 4 Result (out) is identical on all ranks.
 ```
+<br>
+
+Check: <br>
+https://stackoverflow.com/questions/10017301/mpi-blocking-vs-non-blocking
 
 | MPI Call                | Who Calls      | Who Waits | Blocking?   | Synchronization Scope |
 | ----------------------- | -------------- | --------- | ----------- | --------------------- |
