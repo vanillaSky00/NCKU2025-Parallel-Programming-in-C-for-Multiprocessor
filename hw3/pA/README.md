@@ -228,6 +228,7 @@ we assign worker1 (P1) with 1,3,5,7,... worker2 with 2,4,6,8...
 8. **Solve from bottom** <br>
    Starting from the last row, the rank that owns row `k` computes `x[k]`, broadcasts it, and all ranks use it to finish the solution vector.
 
+<br>
 
 ## The advantage of the LU factorization
 Thanks to:
