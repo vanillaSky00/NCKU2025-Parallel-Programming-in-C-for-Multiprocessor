@@ -1,5 +1,9 @@
 CC := mpic++
-CFLAGS := -Wall -O2
+CFLAGS := -std=c++17 -O3 -march=skylake-avx512 -mtune=skylake-avx512 \
+             -funroll-loops -ffast-math -flto -fno-signed-zeros \
+             -fno-trapping-math -fassociative-math -freciprocal-math \
+             -mprefer-vector-width=512 \
+             -DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX -Wall
 TARGET := hw3b
 
 all: $(TARGET)
