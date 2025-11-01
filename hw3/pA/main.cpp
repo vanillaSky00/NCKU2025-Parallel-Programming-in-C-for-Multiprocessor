@@ -49,8 +49,10 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
                 for (int j = k; j < n; j++) buf[j] = 0.0;
                 buf[n] = 0.0;
             }
+            // Because a_kk = 0 so broadcast all zero buffer, others won't be subtracted
             MPI_Bcast(buf.data() + k, n - k + 1, MPI_DOUBLE, k_owner, comm);
-        } else {
+        } 
+        else {
             int pivot_owner = pivot_row % p;
 
             if (pivot_owner == k_owner) {
@@ -90,14 +92,15 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
                     A[i][j] -= l * buf[j];
                 }
                 b[i] -= l * buf[n];
-            } else {
+            } 
+            else {
                 A[i][k] = 0.0;
             }
         }
     }
 
-    //for every global row i find who really owns it: owner = i % p
-    //if I am the owner and I am not rank 0 → send the row to rank 0
+    // For every global row i find who really owns it: owner = i % p
+    // If I am the owner and I am not rank 0 → send the row to rank 0
     if (p > 1) {
         for (int i = 0; i < n; i++) {
             int owner = i % p;
@@ -106,7 +109,8 @@ vector<double> gauss_cyclic(vector<vector<double>>& A, vector<double>& b, int n,
                 for (int j = 0; j < n; j++) row_data[j] = A[i][j];
                 row_data[n] = b[i];
                 MPI_Send(row_data.data(), n + 1, MPI_DOUBLE, 0, i, comm);
-            } else if (me == 0 && me != owner) {
+            } 
+            else if (me == 0 && me != owner) {
                 vector<double> row_data(n + 1);
                 MPI_Status st;
                 MPI_Recv(row_data.data(), n + 1, MPI_DOUBLE, owner, i, comm, &st);
@@ -182,11 +186,11 @@ int main(int argc, char *argv[]) {
         cin >> file_name;
         ifstream fin(file_name);
         fin >> n;
-        A.assign(n, vector<double>(n, 0.0));
-        b.assign(n, 0.0);
-        for (int i = 0; i < n; ++i) {
+        A.assign(n, vector<double>(n));
+        b.resize(n);
+        for (int i = 0; i < n; i++) {
             string s;
-            for (int j = 0; j < n; ++j) {
+            for (int j = 0; j < n; j++) {
                 fin >> s;
                 A[i][j] = (double)parse_token(s);
             }
@@ -202,20 +206,21 @@ int main(int argc, char *argv[]) {
     }
 
     if (world_rank != 0) {
-        A.assign(n, vector<double>(n, 0.0));
-        b.assign(n, 0.0);
+        A.assign(n, vector<double>(n));
+        b.resize(n);
     }
 
     vector<double> flat_A(n * n);
     if (world_rank == 0) {
-        for (int i = 0; i < n; ++i)
-            for (int j = 0; j < n; ++j)
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
                 flat_A[i * n + j] = A[i][j];
     }
     MPI_Bcast(flat_A.data(), n * n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
     if (world_rank != 0) {
-        for (int i = 0; i < n; ++i)
-            for (int j = 0; j < n; ++j)
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
                 A[i][j] = flat_A[i * n + j];
     }
     MPI_Bcast(b.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -227,52 +232,31 @@ int main(int argc, char *argv[]) {
         if (state_result == UNIQUE_SOLUTION) {
             cout.setf(ios::fixed);
             cout << setprecision(8);
-            for (int i = 0; i < n; ++i)
-                cout << x[i] << (i + 1 == n ? '\n' : ' ');
-        } else if (state_result == INFINITY_SOLUTION) {
-            cout << "Infinite Solutions\n";
-        } else {
-            cout << "No Solution\n";
-        }
+            for (int i = 0; i < n; ++i) cout << x[i] << (i + 1 == n ? '\n' : ' ');
+        } 
+        else if (state_result == INFINITY_SOLUTION) cout << "Infinite Solutions\n";
+        else cout << "No Solution\n";
     }
 
     MPI_Finalize();
     return 0;
 }
 
-static long double parse_token(string tok) {
-    while (!tok.empty() && (tok.front() == ' ' || tok.front() == '\t'))
-        tok.erase(tok.begin());
-    while (!tok.empty() &&
-           (tok.back() == ' ' || tok.back() == '\t' ||
-            tok.back() == '\r' || tok.back() == '\n'))
-        tok.pop_back();
-    if (tok.empty()) return 0.0L;
 
+static long double parse_token(string tok) {
     auto p = tok.find('/');
-    try {
-        if (p == string::npos) {
-            return stold(tok);
-        } else {
-            string ns = tok.substr(0, p);
-            string ds = tok.substr(p + 1);
-            while (!ns.empty() && isspace((unsigned char)ns.back())) ns.pop_back();
-            while (!ds.empty() && isspace((unsigned char)ds.back())) ds.pop_back();
-            long double num = stold(ns);
-            long double den = stold(ds);
-            if (den == 0.0L) throw runtime_error("div0");
-            return num / den;
-        }
-    } catch (...) {
-        return 0.0L;
-    }
+    if (p == std::string::npos) return stold(tok);
+    long double num = stold(tok.substr(0, p));
+    long double den = stold(tok.substr(p + 1));
+    if (den == 0.0L) throw runtime_error("Division by zero");
+    return num / den;
 }
 
 static inline pair<int,double> local_pivot_candidate(const vector<vector<double>>& A, int k, int n, int p, int me) {
     
     int best_row = -1;
     double best_val = 0.0;
-    for (int i = k; i < n; ++i) {
+    for (int i = k; i < n; i++) {
         if (i % p != me) continue;
         double v = fabs(A[i][k]);
         if (v > best_val) {
@@ -290,17 +274,17 @@ static inline void exchange_row(vector<vector<double>>& A, vector<double>& b, in
 }
 
 static inline void copy_row(const vector<vector<double>>& A, const vector<double>& b, int k, int n, vector<double>& buf){
-    for (int j = k; j < n; ++j) buf[j] = A[k][j];
+    for (int j = k; j < n; j++) buf[j] = A[k][j];
     buf[n] = b[k];
 }
 
 static inline void copy_back_row(vector<vector<double>>& A, vector<double>& b, int k, int n, const vector<double>& buf){
-    for (int j = k; j < n; ++j) A[k][j] = buf[j];
+    for (int j = k; j < n; j++) A[k][j] = buf[j];
     b[k] = buf[n];
 }
 
 static inline void copy_exchange_row(vector<vector<double>>& A, vector<double>& b, int r, int k, int n, vector<double>& buf) {
-    for (int j = k; j < n; ++j) {
+    for (int j = k; j < n; j++) {
         double tmp = A[r][j];
         A[r][j] = buf[j];
         buf[j] = tmp;
