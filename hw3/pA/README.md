@@ -108,14 +108,14 @@ We define:
 ## Pivoting
 Why?
 When solving a linear system $ Ax = y $ using Gaussain elimination, we need to divided by the diagonal element $ Ax = y $ during elimination. <br>
-- $ a^{(k)}_{kk} = 0 $
+- $a^{(k)}_{kk} = 0$
 
-- $ a^{(k)}_{kk} $ is very small 
+- $a^{(k)}_{kk}$ is very small 
 
 **To avoid this, the better strategy:<br>
 Swap rows or columns so that we divide by a larger (better) number — this process is called pivoting.**
 
-$ a^{(k)}_{rk} $ where the pivot has the maximum absolute value in the row
+$a^{(k)}_{rk}$ where the pivot has the maximum absolute value in the row
 
 ```math
 \begin{bmatrix}
@@ -125,7 +125,8 @@ $ a^{(k)}_{rk} $ where the pivot has the maximum absolute value in the row
 \end{bmatrix}
 ```
 
-swap $ row_{0} $  with  $ row_{2} $  
+
+swap $row_{0}$  with  $row_{2}$ 
 
 ```math
 \begin{bmatrix}
@@ -135,7 +136,7 @@ swap $ row_{0} $  with  $ row_{2} $
 \end{bmatrix}
 ```
 
-pivot $ a_{00} = 2 $
+pivot $a_{00} = 2$
 
 <br>
 
