@@ -62,9 +62,7 @@ We define:
 
 - $rank(A)$: number of non-zero rows in the upper-triangular form of A
 
-- $rank(\begin{bmatrix}\begin{array}{c|c}
-        A & b \\
-    \end{array} \end{bmatrix})$: number of non-zero rows in the augmented matrix
+- $rank([A | b])$: number of non-zero rows in the augmented matrix
 
 <br>
 
