@@ -66,10 +66,10 @@ We define:
 
 <br>
 
-| Case                   | Condition         | Meaning |                                              |       |
-| ---------------------- | ----------------- | ------- | -------------------------------------------- | ----- |
-| **Unique solution**    | rank(A) = rank([A \| b]) = n | exactly one (x)                              |       |
-| **Infinite solutions** | rank(A) = rank([A \| b]) < n | system underdetermined (some free variables) |       |
+| Case                   | Condition         | Meaning |                                              
+| ---------------------- | ----------------- | ------- | 
+| **Unique solution**    | rank(A) = rank([A \| b]) = n | exactly one (x)                              | 
+| **Infinite solutions** | rank(A) = rank([A \| b]) < n | system underdetermined (some free variables) |      
 | **No solution**        | rank(A) < rank([A \| b])     | inconsistent (a row like `0 0 0  \| c≠0`) |
 
 <br>
@@ -193,44 +193,39 @@ we assign worker1 (P1) with 1,3,5,7,... worker2 with 2,4,6,8...
 
 **Forward elimination**
 
-1. **Local pivot pick**
+1. **Local pivot pick** <br>
    On step `k`, each rank scans only the rows it owns (those with `i % p == me`) and in column `k` finds its best candidate `(abs value, global row id)`.
 
-2. **Global pivot pick**
+2. **Global pivot pick** <br>
    All ranks run `MPI_Allreduce` with `MPI_MAXLOC` to pick the single global best pivot row.
 
-3. **Pivot row placement**
+3. **Pivot row placement** <br>
    If the pivot row lives on a different rank than row `k`, the two ranks exchange that row (send/recv a contiguous buffer of length `n+1`) so that the row `k` is correct on its owner.
 
-4. **Pivot broadcast**
+4. **Pivot broadcast** <br>
    The rank that owns row `k` normalizes it (divide by the diagonal) and broadcasts the tail `pivot[k..n]` to all ranks.
 
-5. **Local elimination**
+5. **Local elimination** <br>
    Each rank goes through *its* rows `i > k` (same `i % p == me`) and uses the received pivot to zero `A[i][k]` and update `A[i][j], b[i]` for `j > k`. This part is fully parallel.
 
 ---
 
 **Rebuild matrix on rank 0**
 
-6. **Gather rows back**
+6. **Gather rows back** <br>
    After elimination, each nonzero rank sends its rows `(A[i][*], b[i])` to rank 0, because rows are cyclically distributed and rank 0 does not naturally hold all rows in order.
 
 ---
 
 **Rank checking**
 
-7. **Rank 0 determines type**
-   Rank 0, with the full reconstructed `[A|b]`, counts:
-   * `rank(A) < rank([A|b])` → **No Solution**
-   * `rank(A) == rank([A|b]) < n` → **Infinite Solutions**
-   * `rank(A) == rank([A|b]) == n` → **Unique Solution**
-     The result is broadcast to all ranks.
-
+7. **Rank 0 determines type** <br>
+   Counts `rank(A)` and `rank([A|b])`, after compariosn of two broadcast the result to all ranks.
 ---
 
 **Backward substitution**
 
-8. **Solve from bottom**
+8. **Solve from bottom** <br>
    Starting from the last row, the rank that owns row `k` computes `x[k]`, broadcasts it, and all ranks use it to finish the solution vector.
 
 
