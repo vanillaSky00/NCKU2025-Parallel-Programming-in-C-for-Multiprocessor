@@ -1,11 +1,12 @@
 ## Overall
-Use MPI to parallelize the forward elimination phase of Gaussian elimination, since this stage allows independent row updates that can be distributed across multiple processes.
-In MPI, each process is an independent program instance with its own memory space — there is no shared memory.
-Therefore, all data exchange must occur through explicit message passing rather than direct access.
+Use MPI to parallelize the forward elimination phase of Gaussian elimination, since this stage allows independent row updates that can be distributed across multiple processes.<br>
+
 This implementation focuses on designing an efficient communication pattern to coordinate these distributed computations.
 
 
 ## Common pitfall
+In MPI, each process is an independent program instance with its own memory space — there is no shared memory.<br>
+Therefore, all data exchange must occur through explicit message passing rather than direct access.<br>
 
 ### Directly swap the pointer
 
@@ -16,13 +17,12 @@ This implementation focuses on designing an efficient communication pattern to c
 | 2          | P₀    |
 | 3          | P₁    |
 
-But sometimes pivot = row 2 (on P₀)
-and row k=1 (on P₁).
-Now they belong to different address spaces.
-P₀ cannot directly touch P₁’s row array in memory.
+But sometimes pivot = row 2 (on P₀) and row k=1 (on P₁).<br>
+Now they belong to different address spaces. P₀ cannot directly touch P₁’s row array in memory.
 
 
-The memory space are different among MPI processes. And a process has its own memory space, they cannot swap pointers globally. And it also explains why we often see copy the value from the message we receive.
+The memory space are different among MPI processes. And a process has its own memory space, they cannot swap pointers globally. <br>
+And it also explains why we often see copy the value from the message we receive.
 
 **Not threads!**
 We are creating 4 completely separate processes, each with its own:
