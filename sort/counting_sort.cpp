@@ -34,7 +34,7 @@ vector<int> counting_sort(int max_val, vector<int>& nums, MPI_Comm comm) {
         ans.resize(n);
         int idx = 0;
         for (int i = 0; i <= max_val; i++) {
-            while (global_freq[i]-- > 0) res[idx++] = i;
+            while (global_freq[i]-- > 0) ans[idx++] = i;
         }
     }
 
