@@ -1,0 +1,26 @@
+{
+    "testcase": [
+        {
+            "input": "./data/01.in",
+            "output": "./data/01.out"
+        },
+        {
+            "input": "./data/02.in",
+            "output": "./data/02.out"
+        },
+        {
+            "input": "./data/03.in",
+            "output": "./data/03.out"
+        },
+        {
+            "input": "./data/04.in",
+            "output": "./data/04.out"
+        },
+        {
+            "input": "./data/05.in",
+            "output": "./data/05.out"
+        }
+    ],
+    "score": 20,
+    "time_limit": 0.5
+}
