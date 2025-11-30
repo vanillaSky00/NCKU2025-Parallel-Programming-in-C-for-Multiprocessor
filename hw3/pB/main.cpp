@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
     if (world_rank == 0) {
         for (int i = 1; i <= n; i++) {
             for (int j = 1; j <= n; j++) {
-                flat[i * n + j] = A[i][j];
+                flat[i * (n+2) + j] = A[i][j];
             }
         }
     }
@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
     if (world_rank != 0) {
         for (int i = 1; i <= n; i++) {
             for (int j = 1; j <= n; j++) {
-                A[i][j] = flat[i * n + j];
+                A[i][j] = flat[i * (n+2) + j];
             }
         }
     }
