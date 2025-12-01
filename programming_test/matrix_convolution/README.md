@@ -1,6 +1,25 @@
 ## Convolution
 Convolution is a fundamental operation in probability theory, image recognition, neural networks, and even large integer multiplication. Since the naive $O(N^2)$ approach is computationally expensive, we can utilize parallelization to speed up processing. Alternatively, the **Fast Fourier Transform (FFT)** can be employed to lower the complexity to $O(N \log N)$.
 
+## Setup
+```
+chmod u+x judge.py
+python3 judge.py
+```
+
+#### problem constrains
+Input matrix: $n \times n, \ n \le 200$
+ <br> Kernel: $3 \times 3$ 
+ <br> Times of operation $t \le 10^4$ 
+
+ **Worst case:** 
+<br> Matrix Size: $200 \times 200 = 40,000$ elements.<br> Kernel Operations: For each element, a $3 \times 3$ convolution does 9 multiplications and 9 additions. Let's say roughly 20 operations per element.
+<br> Iterations: $10,000$ passes.
+
+<br> Total Operations:$$40,000 \text{ elements} \times 20 \text{ ops/element} \times 10,000 \text{ iterations} \approx 8 \times 10^9 \text{ operations (8 Billion)}$$
+
+And A modern CPU core typically handles $2-4$ billion operations per second (single-threaded).
+
 ## Parallelization Stategy
 ### Padding 
 
@@ -35,7 +54,9 @@ Total Message Complexity: Across all processes per forward pass, the complexity 
 
 This is why more processors will get overhead.
 ## Reference
-https://github.com/0xnirmal/Parallel-Convolution-MPI
 
+https://hackmd.io/@HankWu0425/Bonus1
+
+https://github.com/0xnirmal/Parallel-Convolution-MPI
 
 https://www.youtube.com/watch?v=KuXjwB4LzSA
