@@ -7,6 +7,7 @@ chmod u+x judge.py
 python3 judge.py
 ```
 
+## Optimization Analysis
 #### problem constrains
 Input matrix: $n \times n, \ n \le 200$
  <br> Kernel: $3 \times 3$ 
@@ -20,9 +21,10 @@ Input matrix: $n \times n, \ n \le 200$
 
 And A modern CPU core typically handles $2-4$ billion operations per second (single-threaded).
 
+
+
 ## Parallelization Stategy
 ### Padding 
-
 
 ### Communication design
 
@@ -53,6 +55,11 @@ The size of messages passed per process is proportional to the width of the inpu
 Total Message Complexity: Across all processes per forward pass, the complexity is $$O(PNK)$$
 
 This is why more processors will get overhead.
+
+
+## MPI
+The "v" in MPI_Gatherv stands for Variable. Unlike MPI_Gather (which assumes everyone sends the exact same amount), MPI_Gatherv allows processes to send different amounts of data. This is crucial because your last process might have a different number of rows (handling the remainder of $N / P$).
+
 ## Reference
 
 https://hackmd.io/@HankWu0425/Bonus1

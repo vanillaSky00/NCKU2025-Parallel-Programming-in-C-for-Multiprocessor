@@ -25,7 +25,7 @@ void convolution(vector<int>& A, vector<int>& kernel, int n, int t, MPI_Comm com
     vector<int> tmp(sz * sz, 0);
 
     int up   = (me == 0)                ? MPI_PROC_NULL : me - 1;
-    int down = (me == world_size - 1) ? MPI_PROC_NULL : me + 1;
+    int down = (me == world_size - 1)   ? MPI_PROC_NULL : me + 1;
 
     while (t-- > 0) {
         for(int r = start_row; r <= end_row; r++) {
