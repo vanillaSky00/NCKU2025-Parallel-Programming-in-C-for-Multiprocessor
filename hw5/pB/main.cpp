@@ -7,23 +7,27 @@
 #include <algorithm>
 #include <stdexcept>
 #include <queue>
-#include <climits>
+#include <limits>
 
 using namespace std;
+using Edge = pair<int, int>;
+using AdjList = vector<vector<Edge>>;
+constexpr int INF = numeric_limits<int>::max();
 
-
-static void* worker(int n, vector<vector<pair<int, int>>>& adjList) {
+static void* worker(int n, const AdjList& adjList) {
     priority_queue<
-        pair<int, int>,
-        vector<pair<int, int>>,
-        greater<pair<int, int>>
+        Edge,
+        vector<Edge>,
+        greater<Edge>
     > pq;
 
-    vector<int> res(n, 0);
-
+    vector<int> dist(n);
+    vector<int> res(n);
+    
     for (int src = 0; src < n; src++) {
 
-        vector<int> dist(n, INT_MAX);
+        fill(dist.begin(), dist.end(), INF);
+
         dist[src] = 0;
         pq.push({0, src});
 
@@ -41,13 +45,12 @@ static void* worker(int n, vector<vector<pair<int, int>>>& adjList) {
             }
         }
         
-        int max_dist = INT_MIN;
+        int max_dist = -1;
         for (int i = 0; i < n; i++) {
-            if (i == src) continue;
-            int d = dist[i];
-            if (d != INT_MAX && d > max_dist) max_dist = d;
+            if (i == src || dist[i] == INF) continue;
+            max_dist = max(max_dist, dist[i]);
         }
-        res[src] = max_dist == INT_MIN ? -1 : max_dist;
+        res[src] = max_dist;
     }
 
     for (int r : res) {
@@ -80,7 +83,7 @@ int main(int argc, char** argv) {
     int n, m;
     file >> n >> m;
 
-    vector<vector<pair<int, int>>> adjList(n);
+    AdjList adjList(n);
 
     int u, v, w;
     while (m-- > 0) {
