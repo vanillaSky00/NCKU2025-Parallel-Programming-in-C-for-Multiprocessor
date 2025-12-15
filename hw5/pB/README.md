@@ -1,0 +1,1 @@
+https://immortalqx.github.io/2021/12/05/cpp-notes-4/
