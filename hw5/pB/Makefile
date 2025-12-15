@@ -1,6 +1,10 @@
 CC = gcc
 CXX = g++
-CFLAGS = -Wall -Wextra -Wshadow -lm -pthread
+CFLAGS := -std=c++17 -O3 -Wall -march=native -Wextra -Wshadow -lm -pthread \
+             -funroll-loops -ffast-math -flto -fno-signed-zeros \
+             -fno-trapping-math -fassociative-math -freciprocal-math \
+             -mprefer-vector-width=512 \
+             -DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX 
 
 EXEC = hw5B
 SRC_C = main.c
