@@ -10,14 +10,14 @@
 using namespace std;
 
 struct ThreadCtx {
-    const vector<array<long long,4>>* A_param;
-    const vector<vector<long long>>* BT;   // transposed B
-    vector<long long>* res;
     int tid;
     int num_threads;
+    const vector<array<long long,4>>* A_param;
+    const vector<vector<long long>>* BT;   
+    vector<long long>* res;
 };
 
-static void* worker(void* arg) {
+static void* matrix_mul_worker(void* arg) {
     auto* ctx = static_cast<ThreadCtx*>(arg);
     const auto& Ap = *ctx->A_param;
     const auto& BT = *ctx->BT;
@@ -107,11 +107,11 @@ int main(int argc, char** argv) {
     vector<long long> res(n, 0);
 
     vector<pthread_t> threads(NUM_THREADS);
-    vector<ThreadCtx> ctx(NUM_THREADS);
+    vector<ThreadCtx> contexts(NUM_THREADS);
 
     for (int t = 0; t < NUM_THREADS; t++) {
-        ctx[t] = ThreadCtx{&A_param, &BT, &res, t, NUM_THREADS};
-        int rc = pthread_create(&threads[t], nullptr, worker, &ctx[t]);
+        contexts[t] = ThreadCtx{t, NUM_THREADS, &A_param, &BT, &res};
+        int rc = pthread_create(&threads[t], nullptr, matrix_mul_worker, &contexts[t]);
         if (rc != 0)
             throw runtime_error("pthread_create failed");
     }
@@ -119,8 +119,8 @@ int main(int argc, char** argv) {
     for (int t = 0; t < NUM_THREADS; t++)
         pthread_join(threads[t], nullptr);
 
-    for (auto v : res)
-        cout << v << "\n";
+    for (auto r : res)
+        cout << r << "\n";
 
     return 0;
 }

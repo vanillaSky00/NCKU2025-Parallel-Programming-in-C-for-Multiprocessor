@@ -8,38 +8,23 @@
 #include <stdexcept>
 #include <queue>
 #include <limits>
-#include <array>
 
 using namespace std;
 using Edge = pair<int, int>;
 using AdjList = vector<vector<Edge>>;
 constexpr int INF = numeric_limits<int>::max();
 
-struct ThreadCtx {
-    int tid;
-    int num_threads;
-    int n;
-    const AdjList* adjList;
-    vector<int>* res;
-};
-
-
-static void* dijkstra_worker(void* arg) {
-
-    auto* ctx = static_cast<ThreadCtx*>(arg);
-    const auto n = ctx->n;
-    const auto& adjList = *ctx->adjList;
-    auto& res = *ctx->res;
-
-    vector<int> dist(n);
+static void* dijkstra_worker(int n, const AdjList& adjList) {
     priority_queue<
         Edge,
         vector<Edge>,
         greater<Edge>
     > pq;
 
-    // Cyclic helps load balancing for each threads
-    for (int src = ctx->tid; src < n; src += ctx->num_threads) {
+    vector<int> dist(n);
+    vector<int> res(n);
+    
+    for (int src = 0; src < n; src++) {
 
         fill(dist.begin(), dist.end(), INF);
 
@@ -66,6 +51,10 @@ static void* dijkstra_worker(void* arg) {
             max_dist = max(max_dist, dist[i]);
         }
         res[src] = max_dist;
+    }
+
+    for (int r : res) {
+        cout << r << "\n";
     }
 
     return nullptr;
@@ -104,24 +93,5 @@ int main(int argc, char** argv) {
         adjList[v].push_back({u, w});
     }
 
-    vector<int> res(n, 0);
-    
-    vector<pthread_t> threads(NUM_THREADS);
-    vector<ThreadCtx> contexts(NUM_THREADS);
-
-    for (int t = 0; t < NUM_THREADS; t++) {
-        contexts[t] = ThreadCtx{t, NUM_THREADS, n, &adjList, &res};
-        int rc = pthread_create(&threads[t], nullptr, dijkstra_worker, &contexts[t]);
-        if (rc != 0)
-            throw runtime_error("pthread_create failed");
-    }
-
-    for (int t = 0; t < NUM_THREADS; t++) {
-        pthread_join(threads[t], nullptr);
-    }
-
-    for (auto r : res) 
-        cout << r << "\n";
-
-    return 0;
+    dijkstra_worker(n, adjList);
 }

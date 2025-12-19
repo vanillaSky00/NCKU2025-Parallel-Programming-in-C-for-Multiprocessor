@@ -14,7 +14,7 @@ struct ThreadCtx {
     int num_threads;
 };
 
-static void* worker(void* arg) {
+static void* matrix_mul_worker(void* arg) {
     auto* ctx = static_cast<ThreadCtx*>(arg);
     const auto& Ap = *ctx->A_param;
     const auto& Bp = *ctx->B_param;
@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
 
     for (int t = 0; t < NUM_THREADS; t++) {
         ctx[t] = ThreadCtx{&A_param, &B_param, &res, t, NUM_THREADS};
-        int rc = pthread_create(&threads[t], nullptr, worker, &ctx[t]);
+        int rc = pthread_create(&threads[t], nullptr, matrix_mul_worker, &ctx[t]);
         if (rc != 0) throw std::runtime_error("pthread_create failed");
     }
 
