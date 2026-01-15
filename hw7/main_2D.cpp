@@ -1,10 +1,11 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <cmath> // Required for sqrt, pow
+#include <cmath> 
 #include <limits>
 #include <random>
 #include <algorithm>
+#include <iomanip> 
 
 using namespace std;
 
@@ -80,8 +81,11 @@ public:
             pheromoneUpdate();
         }
 
-        // --- FINAL OUTPUT ---
-        cout << "Final Best Tour Length: " << globalBestAnt.tourLength << endl;
+        cout << fixed << setprecision(6) << globalBestAnt.tourLength << endl;
+        for (size_t i = 0; i < globalBestAnt.path.size(); ++i) {
+            cout << globalBestAnt.path[i] << (i == globalBestAnt.path.size() - 1 ? "" : " ");
+        }
+        cout << endl;
     }
 
 private:
