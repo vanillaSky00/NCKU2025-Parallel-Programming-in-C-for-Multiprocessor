@@ -4,7 +4,7 @@ CFLAGS := -std=c++17 -O3 -Wall -march=native -Wextra -Wshadow -lm -pthread \
              -funroll-loops -ffast-math -flto -fno-signed-zeros \
              -fno-trapping-math -fassociative-math -freciprocal-math \
              -mprefer-vector-width=512 \
-             -DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX 
+             -DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX  
 
 EXEC = hw7
 SRC_C = main.c
