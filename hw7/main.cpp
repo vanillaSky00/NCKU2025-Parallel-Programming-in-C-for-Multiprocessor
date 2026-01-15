@@ -1,23 +1,20 @@
-#include <pthread.h>
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <array>
-#include <string>
-#include <algorithm>
-#include <stdexcept>
-#include <queue>
+#include <cmath>
 #include <limits>
-#include <array>
 #include <random>
+#include <algorithm>
+#include <iomanip> 
 
 using namespace std;
 
-const int NUM_ANTS = 50;
-const int NUM_ITERATIONS = 100;
+
+const int NUM_ANTS = 20; 
+const int NUM_ITERATIONS = 50; 
 const double ALPHA = 1.0;
-const double BETA = 5.0;
-const double EVAPERATION = 0.5;
+const double BETA = 2.0; 
+const double EVAPORATION = 0.5;
 const double Q = 100.0;
 
 struct Point {
@@ -33,7 +30,6 @@ struct Ant {
         path.reserve(n);
     }
 
-    // reset this ant's all memory(related attributes data)
     void reset(int n) {
         path.clear();
         visited.assign(n, false);
@@ -52,8 +48,7 @@ class AntColonyOptimization {
 private:
     int n; // city num
     vector<Point> cities;
-    vector<vector<double>> distMatrix; // distance between city_ij
-    vector<vector<double>> pheromones; // pheromones between city_ij
+    vector<float> pheromones; // pheromones between city_ij
 
     vector<Ant> ants;
     Ant globalBestAnt;
@@ -70,19 +65,31 @@ public:
             cities.push_back(Point{pos.first, pos.second});
         }
 
-        distMatrix.resize(n, vector<double>(n));
-        pheromones.resize(n, vector<double>(n, 0.1));
+        // Initialize pheromones (1D array)
+        // Note: For N=10^6, even this is too big. 
+        try {
+            pheromones.resize((size_t)n * n, 0.1f);
+        } 
+        catch (const std::bad_alloc& e) {
+            cerr << "[Error] Memory allocation failed for Pheromones. N is too large." << endl;
+            exit(1);
+        }
 
         for (int i = 0; i < NUM_ANTS; i++) {
             ants.emplace_back(n);
         }
 
         globalBestAnt.tourLength = numeric_limits<double>::max();
-
-        calculateDistances();
     }
 
     void solve() {
+        if (n <= 1) {
+            cout << "0.000000" << endl;
+            if (n == 1) cout << "0" << endl;
+            return;
+        }
+
+        
 
         for (int iter = 0; iter < NUM_ITERATIONS; iter++) {
             for (int antIdx = 0; antIdx < NUM_ANTS; antIdx++) {
@@ -92,20 +99,22 @@ public:
             pheromoneUpdate();
         }
 
-        cout << globalBestAnt.tourLength << "\n";
-        for (int i = 0; i < n; i++) {
-            cout << globalBestAnt.path[i] << " ";
+        cout << fixed << setprecision(6) << globalBestAnt.tourLength << endl;
+        for (size_t i = 0; i < globalBestAnt.path.size(); ++i) {
+            cout << globalBestAnt.path[i] << (i == globalBestAnt.path.size() - 1 ? "" : " ");
         }
+        cout << endl;
     }
+
 private:
-    void calculateDistances(){
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                double dx = cities[i].x - cities[j].x;
-                double dy = cities[i].y - cities[j].y;
-                distMatrix[i][j] = sqrt(dx * dx + dy * dy);
-            }
-        }
+    inline double getDist(int i, int j) {
+        double dx = cities[i].x - cities[j].x;
+        double dy = cities[i].y - cities[j].y;
+        return sqrt(dx*dx + dy*dy);
+    }
+
+    inline float& getPheromone(int i, int j) {
+        return pheromones[i * n + j];
     }
 
     /**
@@ -119,7 +128,7 @@ private:
         Ant& ant = ants[antId];
         ant.reset(n);
 
-        uniform_int_distribution<int> dist(0, n-1); // dist is an object that can generate random ints in [0, n-1]
+        uniform_int_distribution<int> dist(0, n-1);
         int currentCity = dist(rng);
 
         ant.path.push_back(currentCity);
@@ -128,12 +137,12 @@ private:
         for (int step = 0; step < n - 1; step++) {
             int nextCity = selectNextCity(currentCity, ant.visited);
             ant.path.push_back(nextCity);
-            ant.tourLength += distMatrix[currentCity][nextCity];
+            ant.tourLength += getDist(currentCity, nextCity);
             ant.visited[nextCity] = true;
             currentCity = nextCity;
         }
         
-        ant.tourLength += distMatrix[currentCity][ant.path[0]];
+        ant.tourLength += getDist(currentCity, ant.path[0]);
     }
 
     /**
@@ -146,24 +155,40 @@ private:
      *    (this randomness allows exploration).
      */
     int selectNextCity(int currentCity, const vector<bool>& visited) {
-        vector<double> probs(n, 0.0);
+        // Optimization: Don't allocate probs vector every time. 
+        // Use a thread-local or member vector ideally. 
+        // For now, keeping it simple but checking n size.
+        
+        // If N is huge, we cannot iterate all cities.
+        // For this assignment, we use standard ACO logic but be aware it's O(N).
+        
+        vector<double> probs; 
+        probs.reserve(n); // Reserve to avoid reallocs
+        
         double sum = 0.0;
-
+        
+        // Only calculate probs for unvisited to save some time
+        // But we need to maintain index 'i'.
+        
+        // Standard Roulette Wheel
         for (int i = 0; i < n; i++) {
             if (!visited[i]) {
-                double tau = pheromones[currentCity][i];
-                double eta = 1 / (distMatrix[currentCity][i] + 1e-10);
-                probs[i] = pow(tau, ALPHA) * pow(eta, BETA);
-                sum += probs[i];
-            }            
+                double tau = (double)getPheromone(currentCity, i);
+                double dist = getDist(currentCity, i);
+                double eta = 1.0 / (dist + 1e-10);
+                
+                double p = pow(tau, ALPHA) * pow(eta, BETA);
+                probs.push_back(p);
+                sum += p;
+            } else {
+                probs.push_back(0.0);
+            }
         }
 
         uniform_real_distribution<double> dist(0.0, sum);
         double r = dist(rng);
         double partialSum = 0.0;
 
-        // After we get random r, since better items accounts for more slice
-        // it has a higher chance of being picked,
         for (int i = 0; i < n; i++) {
             if (!visited[i]) {
                 partialSum += probs[i];
@@ -171,7 +196,7 @@ private:
             }
         }
 
-        // fallback
+        // Fallback
         for (int i = 0; i < n; i++) if (!visited[i]) return i;
         return -1;
     }
@@ -192,26 +217,23 @@ private:
      * 2. Deposit
      */
     void pheromoneUpdate() {
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                pheromones[i][j] *= (1.0 - EVAPERATION);
-            }
+        for (size_t i = 0; i < pheromones.size(); ++i) {
+            pheromones[i] *= (1.0f - (float)EVAPORATION);
         }
 
-        // add new
         for (const auto& ant : ants) {
             double contribution = Q / ant.tourLength;
-            for (int i = 0; i < ant.path.size() - 1; i++) {
+            for (size_t i = 0; i < ant.path.size() - 1; i++) {
                 int u = ant.path[i];
                 int v = ant.path[i+1];
-                pheromones[u][v] += contribution;
-                pheromones[v][u] += contribution;
+                getPheromone(u, v) += (float)contribution;
+                getPheromone(v, u) += (float)contribution;
             }
-
+            // Close loop
             int u = ant.path.back();
             int v = ant.path[0];
-            pheromones[u][v] += contribution;
-            pheromones[v][u] += contribution;
+            getPheromone(u, v) += (float)contribution;
+            getPheromone(v, u) += (float)contribution;
         }        
     }
 
@@ -225,10 +247,7 @@ int main() {
     cin.tie(nullptr);
 
     string filename;
-    if (!(cin >> filename)) {
-        cerr << "[Error] read filename" << endl;
-        return 0;
-    }
+    if (!(cin >> filename)) return 0;
 
     ifstream file(filename);
     if (!file) {
@@ -237,19 +256,21 @@ int main() {
     }
 
     int n;
-    file >> n;
+    if (!(file >> n)) return 0;
+    
     vector<pair<int, int>> cities(n);
 
     int i = 0;
-    int count = n;
-    while (count-- > 0) {
-        file >> cities[i].first;
-        file >> cities[i].second;
+    while (i < n && file >> cities[i].first >> cities[i].second) {
         i++;
+    }
+
+    if (i < n) {
+        cities.resize(i);
+        n = i;
     }
 
     AntColonyOptimization aco(cities);
     aco.solve();
-
     return 0;
 }
