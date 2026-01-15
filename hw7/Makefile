@@ -8,7 +8,7 @@ CFLAGS := -std=c++17 -O3 -Wall -march=native -Wextra -Wshadow -lm -pthread \
 
 EXEC = hw7
 SRC_C = main.c
-SRC_CXX = main.cpp
+SRC_CXX = main_seq.cpp
 
 ifneq ($(wildcard $(SRC_CXX)),)
 	SRC = $(SRC_CXX)
@@ -22,9 +22,14 @@ else
 	$(error No main.c or main.cpp found)
 endif
 
-.PHONY: all clean
+.PHONY: all clean compile run
 
-all: $(EXEC)
+all: compile
+
+compile: $(EXEC)
+
+run: $(EXEC)
+	./$(EXEC)
 
 $(EXEC): $(SRC)
 	$(COMPILER) -o $(EXEC) $(SRC) $(CFLAGS)

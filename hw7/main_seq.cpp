@@ -41,13 +41,6 @@ struct Ant {
     }
 };
 
-struct ThreadContext {
-    int thread_id;
-    int start_ant_idx;
-    int end_ant_idx;
-    void* aco_instance;
-};
-
 class AntColonyOptimization {
 private:
     int n; // city num
@@ -92,10 +85,6 @@ public:
             pheromoneUpdate();
         }
 
-        cout << globalBestAnt.tourLength << "\n";
-        for (int i = 0; i < n; i++) {
-            cout << globalBestAnt.path[i] << " ";
-        }
     }
 private:
     void calculateDistances(){
@@ -201,7 +190,7 @@ private:
         // add new
         for (const auto& ant : ants) {
             double contribution = Q / ant.tourLength;
-            for (int i = 0; i < ant.path.size() - 1; i++) {
+            for (size_t i = 0; i < ant.path.size() - 1; i++) {
                 int u = ant.path[i];
                 int v = ant.path[i+1];
                 pheromones[u][v] += contribution;
@@ -213,10 +202,6 @@ private:
             pheromones[u][v] += contribution;
             pheromones[v][u] += contribution;
         }        
-    }
-
-    static void* threadEntry() {
-
     }
 };
 
