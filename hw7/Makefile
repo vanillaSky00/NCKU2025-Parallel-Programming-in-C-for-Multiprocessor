@@ -8,7 +8,7 @@ CFLAGS := -std=c++17 -O3 -Wall -march=native -Wextra -Wshadow -lm -pthread \
 
 EXEC = hw7
 SRC_C = main.c
-SRC_CXX = main_seq.cpp
+SRC_CXX = main.cpp
 
 ifneq ($(wildcard $(SRC_CXX)),)
 	SRC = $(SRC_CXX)

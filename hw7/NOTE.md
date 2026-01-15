@@ -32,8 +32,8 @@ random_device{}()
 That seed is passed into the `mt19937` constructor So it’s like: 
 “Create a random seed from the OS and seed my Mersenne Twister RNG with it."
 
-### uniform_int_distribution
-```
+### `uniform_int_distribution`
+```c++
 // Generates integers in a "closed interval [min, max]". Both min and max are inclusive.
 uniform_int_distribution<int> dist(0, n - 1);
 
@@ -45,5 +45,3 @@ dist(rng)
 "Hey Distribution, here is the raw random engine (rng). Pull as many raw bits as you need from it and calculate a number that fits your specific range."
 
 
-
-The reason for dividing by tourLength is to reward shorter (better) paths with more pheromone.Short Path (Good): If the distance is small, the denominator is small $\rightarrow$ Big Contribution.Long Path (Bad): If the distance is huge, the denominator is huge $\rightarrow$ Tiny Contribution.Concrete ExampleImagine $Q = 100$.Ant A (Smart): Finds a short path of length 10.Contribution = 1$100 / 10 = \mathbf{10.0}$ pheromone units.2Result: The trail shines brightly to attract future ants.Ant B (Dumb): Wanders around a path of length 500.Contribution = $100 / 500 = \mathbf{0.2}$ pheromone units.Result: The trail is barely visible; future ants will likely ignore it.What is Q?Q is just a scaling constant.Without $Q$, the values might be too small (e.g., $1/1000 = 0.001$) to compete with the initial pheromone levels or might vanish too fast due to evaporation. It tunes the "strength" of the pheromone signal relative to the rest of the mathematical system.

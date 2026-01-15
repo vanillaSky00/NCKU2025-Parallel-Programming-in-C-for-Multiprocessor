@@ -16,6 +16,7 @@ const double ALPHA = 1.0;
 const double BETA = 2.0; 
 const double EVAPORATION = 0.5;
 const double Q = 100.0;
+const int NUM_THREADS = 4;
 
 struct Point {
     int x, y;
@@ -37,11 +38,13 @@ struct Ant {
     }
 };
 
+class AntColonyOptimization;
+
 struct ThreadContext {
     int thread_id;
     int start_ant_idx;
     int end_ant_idx;
-    void* aco_instance;
+    AntColonyOptimization* aco_instance;
 };
 
 class AntColonyOptimization {
@@ -58,8 +61,7 @@ private:
 public:
     AntColonyOptimization(const vector<pair<int, int>>& inputCities)
         : n(inputCities.size()), 
-          globalBestAnt(inputCities.size()), 
-          rng(random_device{}()) {
+          globalBestAnt(inputCities.size()) {
         
         for (auto& pos : inputCities) {
             cities.push_back(Point{pos.first, pos.second});
@@ -89,12 +91,28 @@ public:
             return;
         }
 
-        
+        pthread_t threads[NUM_THREADS];
+        ThreadContext contexts[NUM_THREADS];
+        int ants_per_thread = NUM_ANTS / NUM_THREADS;
 
         for (int iter = 0; iter < NUM_ITERATIONS; iter++) {
-            for (int antIdx = 0; antIdx < NUM_ANTS; antIdx++) {
-                constructSolution(antIdx);
+
+            // Parallel steps:
+            for (int t = 0; t < NUM_THREADS; t++) {
+                contexts[t].thread_id = t;
+                contexts[t].start_ant_idx = t * ants_per_thread;
+                contexts[t].end_ant_idx = (t == NUM_THREADS - 1) ? NUM_ANTS : (t + 1) * ants_per_thread;
+                contexts[t].aco_instance = this;
+
+                pthread_create(&threads[t], nullptr, AntColonyOptimization::threadEntry, &contexts[t]);
             }
+
+            // Wait for they all finish then go next iter
+            for (int t = 0; t < NUM_THREADS; t++) {
+                pthread_join(threads[t], nullptr);
+            }   
+
+            // Serial steps: global updates
             daemonActions();
             pheromoneUpdate();
         }
@@ -104,6 +122,36 @@ public:
             cout << globalBestAnt.path[i] << (i == globalBestAnt.path.size() - 1 ? "" : " ");
         }
         cout << endl;
+    }
+
+    
+    /**
+     * [Note] Made public so threadEntry can access it (or make threadEntry a friend)
+     * Simulates the complete journey of "a single ant".
+     * 1. Clear the ant's memory.
+     * 2. Place the ant at a random starting city.
+     * 3. Loops N - 1 times, calling selectNextCity() each step to pick where to go.
+     * 4. Close the loop and sum up the tourLength
+     */
+    void constructSolution(int antId, mt19937& local_rng, vector<double>& probBuffer) {
+        Ant& ant = ants[antId];
+        ant.reset(n);
+
+        uniform_int_distribution<int> dist(0, n-1);
+        int currentCity = dist(local_rng);
+
+        ant.path.push_back(currentCity);
+        ant.visited[currentCity] = true;
+
+        for (int step = 0; step < n - 1; step++) {
+            int nextCity = selectNextCity(currentCity, ant.visited, local_rng, probBuffer);
+            ant.path.push_back(nextCity);
+            ant.tourLength += getDist(currentCity, nextCity);
+            ant.visited[nextCity] = true;
+            currentCity = nextCity;
+        }
+        
+        ant.tourLength += getDist(currentCity, ant.path[0]);
     }
 
 private:
@@ -118,34 +166,6 @@ private:
     }
 
     /**
-     * Simulates the complete journey of "a single ant".
-     * 1. Clear the ant's memory.
-     * 2. Place the ant at a random starting city.
-     * 3. Loops N - 1 times, calling selectNextCity() each step to pick where to go.
-     * 4. Close the loop and sum up the tourLength
-     */
-    void constructSolution(int antId) {
-        Ant& ant = ants[antId];
-        ant.reset(n);
-
-        uniform_int_distribution<int> dist(0, n-1);
-        int currentCity = dist(rng);
-
-        ant.path.push_back(currentCity);
-        ant.visited[currentCity] = true;
-
-        for (int step = 0; step < n - 1; step++) {
-            int nextCity = selectNextCity(currentCity, ant.visited);
-            ant.path.push_back(nextCity);
-            ant.tourLength += getDist(currentCity, nextCity);
-            ant.visited[nextCity] = true;
-            currentCity = nextCity;
-        }
-        
-        ant.tourLength += getDist(currentCity, ant.path[0]);
-    }
-
-    /**
      * The decision brain 
      * 1. check all unvisited city 
      * 2. assign scores for unvisited city according to ACO formula
@@ -154,23 +174,12 @@ private:
      *    chance of being picked, but it is not guaranteed 
      *    (this randomness allows exploration).
      */
-    int selectNextCity(int currentCity, const vector<bool>& visited) {
-        // Optimization: Don't allocate probs vector every time. 
-        // Use a thread-local or member vector ideally. 
-        // For now, keeping it simple but checking n size.
+    int selectNextCity(int currentCity, const vector<bool>& visited, mt19937& local_rng, vector<double>& probs) {
         
-        // If N is huge, we cannot iterate all cities.
-        // For this assignment, we use standard ACO logic but be aware it's O(N).
-        
-        vector<double> probs; 
-        probs.reserve(n); // Reserve to avoid reallocs
-        
+        // Reset the buffer (does not free memory, just sets size to 0)
+        probs.clear();
         double sum = 0.0;
         
-        // Only calculate probs for unvisited to save some time
-        // But we need to maintain index 'i'.
-        
-        // Standard Roulette Wheel
         for (int i = 0; i < n; i++) {
             if (!visited[i]) {
                 double tau = (double)getPheromone(currentCity, i);
@@ -180,13 +189,14 @@ private:
                 double p = pow(tau, ALPHA) * pow(eta, BETA);
                 probs.push_back(p);
                 sum += p;
-            } else {
+            } 
+            else {
                 probs.push_back(0.0);
             }
         }
 
         uniform_real_distribution<double> dist(0.0, sum);
-        double r = dist(rng);
+        double r = dist(local_rng);
         double partialSum = 0.0;
 
         for (int i = 0; i < n; i++) {
@@ -237,8 +247,23 @@ private:
         }        
     }
 
-    static void* threadEntry() {
+    /**
+     * Modify here to add things to thread
+     */
+    static void* threadEntry(void* arg) {
+        ThreadContext* ctx = static_cast<ThreadContext*>(arg);
+        AntColonyOptimization* aco = ctx->aco_instance;
 
+        mt19937 local_rng(ctx->thread_id + 5489u);
+
+        vector<double> probBuffer;
+        probBuffer.reserve(aco->n);
+
+        for (int i = ctx->start_ant_idx; i < ctx->end_ant_idx; i++) {
+            aco->constructSolution(i, local_rng, probBuffer);
+        }
+
+        return nullptr;
     }
 };
 
